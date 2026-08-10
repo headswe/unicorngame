@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="sv">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#bfe3f2" />
+    <title>Enhörningsängen</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🦄</text></svg>" />
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #4a3327;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #bfe3f2;
+        font-family: 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif;
+        color: var(--ink);
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        overscroll-behavior: none;
+      }
+      #app {
+        position: fixed;
+        inset: 0;
+      }
+      #app canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+      }
+      .hud {
+        position: fixed;
+        inset: auto 0 0 0;
+        padding: 0.9rem clamp(0.8rem, 3vw, 2rem) calc(0.9rem + env(safe-area-inset-bottom));
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+        pointer-events: none;
+      }
+      .hud-card {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.4rem 0.5rem 0.4rem 1rem;
+        background: rgba(255, 255, 255, 0.88);
+        border: 3px solid var(--ink);
+        border-radius: 999px;
+        box-shadow: 0 6px 0 rgba(74, 51, 39, 0.18);
+        pointer-events: auto;
+      }
+      .hud-name {
+        font-size: 1.15rem;
+        font-weight: bold;
+        max-width: 40vw;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .hud-button {
+        font: inherit;
+        font-weight: bold;
+        font-size: 1rem;
+        color: var(--ink);
+        padding: 0.55rem 1.1rem;
+        min-height: 2.9rem;
+        border: 3px solid var(--ink);
+        border-radius: 999px;
+        background: #ffe07a;
+        cursor: pointer;
+        transition: transform 0.12s ease, background 0.12s ease;
+      }
+      .hud-button:hover {
+        background: #ffd147;
+      }
+      .hud-button:active {
+        transform: translateY(2px) scale(0.97);
+      }
+      .hud-button:focus-visible {
+        outline: 3px solid #2f6fb5;
+        outline-offset: 3px;
+      }
+      .hud-hint {
+        margin: 0;
+        font-size: 0.9rem;
+        font-weight: bold;
+        color: #3f5d4f;
+        background: rgba(255, 255, 255, 0.72);
+        padding: 0.3rem 0.9rem;
+        border-radius: 999px;
+        transition: opacity 0.6s ease;
+      }
+      .hud-hint.gone {
+        opacity: 0;
+      }
+      #loading {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-content: center;
+        justify-items: center;
+        gap: 1.2rem;
+        background: linear-gradient(#bfe3f2, #dff0e4);
+        z-index: 10;
+        transition: opacity 0.5s ease;
+      }
+      #loading.done {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #loading .horn {
+        font-size: 4rem;
+        animation: bob 1.4s ease-in-out infinite;
+      }
+      #loading p {
+        margin: 0;
+        font-size: 1.4rem;
+        font-weight: bold;
+        letter-spacing: 0.02em;
+      }
+      #loading .bar {
+        width: min(60vw, 18rem);
+        height: 0.9rem;
+        border: 3px solid var(--ink);
+        border-radius: 999px;
+        overflow: hidden;
+        background: #fff;
+      }
+      #loading .bar span {
+        display: block;
+        height: 100%;
+        width: 0;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #ff9ec7, #ffd479, #8fe0c0, #9ec8ff);
+        transition: width 0.25s ease;
+      }
+      @keyframes bob {
+        0%,
+        100% {
+          transform: translateY(0) rotate(-6deg);
+        }
+        50% {
+          transform: translateY(-12px) rotate(6deg);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #loading .horn {
+          animation: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="loading">
+      <div class="horn">🦄</div>
+      <p>Ängen växer fram…</p>
+      <div class="bar"><span id="loading-bar"></span></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
