@@ -86,6 +86,8 @@ export class Unicorn {
       height: placed.height,
       pivotX: placed.pivotX,
       pivotY: placed.pivotY,
+      uv: placed.uv,
+      feather: placed.feather ? new THREE.Vector4(...placed.feather) : undefined,
       tint: placed.tint,
       patternMap: placed.pattern?.part.texture,
       patternTint: placed.pattern?.tint,

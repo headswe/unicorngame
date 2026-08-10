@@ -26,6 +26,14 @@ export interface Socket {
   rotation?: number;
 }
 
+/** A region of a sprite, 0..1, origin bottom-left. */
+export interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface BodyRig {
   /** Forehead, just in front of the ears — where the horn grows. */
   poll: Socket;
@@ -33,6 +41,18 @@ export interface BodyRig {
   crest: Socket;
   /** Top of the rump — where the tail attaches. */
   dock: Socket;
+  /**
+   * The patch of the body drawing containing the ears.
+   *
+   * Ears are painted into the body sprite, but the mane is drawn on top of the
+   * body, so a full mane buries them. Rather than drawing a separate ear — which
+   * would never quite line up — this region is cut from the body's own texture
+   * and drawn again over the hair. Same pixels, same tint, same coat pattern,
+   * so it is invisible except where it rescues an ear.
+   *
+   * Keep it tight to the ears: everything inside also covers the mane.
+   */
+  ears?: Rect;
 }
 
 const DEFAULT_RIG: BodyRig = {
@@ -55,16 +75,20 @@ export const BODY_RIGS: Record<string, BodyRig> = {
     poll: { x: 0.755, y: 0.78, scale: 0.46, rotation: -0.22 },
     crest: { x: 0.635, y: 0.855, scale: 0.56 },
     dock: { x: 0.13, y: 0.5, scale: 0.5 },
+    ears: { x: 0.585, y: 0.83, width: 0.17, height: 0.17 },
   },
   kropp_liten: {
     poll: { x: 0.715, y: 0.77, scale: 0.42, rotation: -0.22 },
     crest: { x: 0.585, y: 0.845, scale: 0.5 },
     dock: { x: 0.12, y: 0.47, scale: 0.44 },
+    ears: { x: 0.49, y: 0.815, width: 0.175, height: 0.185 },
   },
   kropp_ludd: {
     poll: { x: 0.745, y: 0.78, scale: 0.44, rotation: -0.22 },
     crest: { x: 0.645, y: 0.845, scale: 0.55 },
     dock: { x: 0.12, y: 0.51, scale: 0.48 },
+    // This one shows both ears, so the patch reaches further back.
+    ears: { x: 0.575, y: 0.83, width: 0.245, height: 0.17 },
   },
 };
 
@@ -139,6 +163,16 @@ export interface PlacedPart {
   order: number;
   /** Set on the body so the coat pattern can be masked to its silhouette. */
   pattern?: { part: Part; tint: number; amount: number; repeat: number };
+  /**
+   * Draw only this region of the part's texture. Used by the ear patch, which
+   * re-uses a slice of the body drawing.
+   */
+  uv?: Rect;
+  /**
+   * Edge fade widths as fractions of the quad: left, right, bottom, top. Lets
+   * the ear patch dissolve into the hair instead of showing its own rectangle.
+   */
+  feather?: [number, number, number, number];
 }
 
 /** Total height of a laid-out unicorn, in body heights. Useful for framing. */
@@ -231,6 +265,31 @@ export function layoutUnicorn(variant: UnicornVariant, assets: LayoutDeps): Plac
 
   attach(variant.maneId, rig.crest, variant.maneColour, PART_ORDER.mane);
   attach(variant.hornId, rig.poll, variant.hornColour, PART_ORDER.horn);
+
+  // Finally the ears, cut from the body and laid back over the hair. Because
+  // the UVs are the body's own, the tint and the coat pattern line up exactly
+  // with the body underneath — only the mane is covered.
+  if (rig.ears) {
+    const { x, y, width, height } = rig.ears;
+    out.push({
+      part: body,
+      x: (x + width / 2 - 0.5) * bodyW,
+      y: (y + height / 2) * bodyH,
+      anchorX: (x + width / 2 - 0.5) * bodyW,
+      anchorY: (y + height / 2) * bodyH,
+      pivotX: 0.5,
+      pivotY: 0.5,
+      width: width * bodyW,
+      height: height * bodyH,
+      rotation: 0,
+      tint: variant.coat,
+      order: PART_ORDER.ears,
+      pattern,
+      uv: rig.ears,
+      // Soft on three sides; the ear tips run right up to the top edge.
+      feather: [0.22, 0.22, 0.3, 0],
+    });
+  }
 
   return out.sort((a, b) => a.order - b.order);
 }

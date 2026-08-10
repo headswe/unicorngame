@@ -51,6 +51,42 @@ async function centreOnPivot(
   return { buffer, width, height };
 }
 
+const smoothstep = (edge: number, x: number): number => {
+  if (edge <= 0) return 1;
+  const t = Math.min(1, Math.max(0, x / edge));
+  return t * t * (3 - 2 * t);
+};
+
+/** Matches the sprite shader's edge fade, so the preview shows the real thing. */
+async function applyFeather(
+  png: Buffer,
+  w: number,
+  h: number,
+  [left, right, bottom, top]: [number, number, number, number],
+): Promise<Buffer> {
+  const mask = Buffer.alloc(w * h * 4);
+  for (let y = 0; y < h; y++) {
+    // Image rows run top-down; the quad's v axis runs bottom-up.
+    const v = 1 - (y + 0.5) / h;
+    const vertical = smoothstep(bottom, v) * smoothstep(top, 1 - v);
+    for (let x = 0; x < w; x++) {
+      const u = (x + 0.5) / w;
+      const fade = vertical * smoothstep(left, u) * smoothstep(right, 1 - u);
+      const o = (y * w + x) * 4;
+      mask[o] = 255;
+      mask[o + 1] = 255;
+      mask[o + 2] = 255;
+      mask[o + 3] = Math.round(fade * 255);
+    }
+  }
+
+  // dest-in keeps the image but multiplies its alpha by the mask's.
+  return sharp(png)
+    .composite([{ input: mask, raw: { width: w, height: h, channels: 4 }, blend: 'dest-in' }])
+    .png()
+    .toBuffer();
+}
+
 /** Turns laid-out parts into sharp overlays, back to front. */
 export async function composeParts(
   placed: PlacedPart[],
@@ -61,7 +97,23 @@ export async function composeParts(
   for (const p of placed) {
     const w = Math.max(1, Math.round(p.width * opts.unit));
     const h = Math.max(1, Math.round(p.height * opts.unit));
-    const resized = await sharp(opts.partFile(p.part.id)).resize(w, h, { fit: 'fill' }).png().toBuffer();
+
+    let source = sharp(opts.partFile(p.part.id));
+    if (p.uv) {
+      // The renderer narrows the quad's UVs; here the pixels are cut out
+      // instead. Rect y runs from the bottom, image rows from the top.
+      const meta = await source.metadata();
+      const iw = meta.width ?? 1;
+      const ih = meta.height ?? 1;
+      source = sharp(opts.partFile(p.part.id)).extract({
+        left: Math.max(0, Math.round(p.uv.x * iw)),
+        top: Math.max(0, Math.round((1 - p.uv.y - p.uv.height) * ih)),
+        width: Math.max(1, Math.round(p.uv.width * iw)),
+        height: Math.max(1, Math.round(p.uv.height * ih)),
+      });
+    }
+    let resized = await source.resize(w, h, { fit: 'fill' }).png().toBuffer();
+    if (p.feather) resized = await applyFeather(resized, w, h, p.feather);
 
     let input = resized;
     let left: number;

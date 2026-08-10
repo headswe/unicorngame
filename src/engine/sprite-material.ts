@@ -15,9 +15,12 @@
 import * as THREE from 'three';
 
 const VERTEX = /* glsl */ `
+  attribute vec2 quadUv;
   varying vec2 vUv;
+  varying vec2 vQuad;
   void main() {
     vUv = uv;
+    vQuad = quadUv;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 `;
@@ -38,7 +41,15 @@ const FRAGMENT = /* glsl */ `
   uniform vec3 glowColor;
   uniform float glowAmount;
 
+  // Fade width at each edge of the quad, as a fraction: left, right, bottom, top.
+  uniform vec4 feather;
+
   varying vec2 vUv;
+  varying vec2 vQuad;
+
+  float edgeFade(float distance, float width) {
+    return width <= 0.0 ? 1.0 : smoothstep(0.0, width, distance);
+  }
 
   void main() {
     vec4 base = texture2D(map, vUv);
@@ -53,7 +64,15 @@ const FRAGMENT = /* glsl */ `
 
     col = mix(col, glowColor, glowAmount);
 
-    gl_FragColor = vec4(col, base.a * opacity);
+    // Softens the boundary of a patch laid over other parts, so it blends in
+    // rather than showing its own rectangle.
+    float fade =
+      edgeFade(vQuad.x, feather.x) *
+      edgeFade(1.0 - vQuad.x, feather.y) *
+      edgeFade(vQuad.y, feather.z) *
+      edgeFade(1.0 - vQuad.y, feather.w);
+
+    gl_FragColor = vec4(col, base.a * opacity * fade);
   }
 `;
 
@@ -77,6 +96,8 @@ export interface SpriteMaterialOptions {
   patternAmount?: number;
   patternRepeat?: THREE.Vector2;
   patternOffset?: THREE.Vector2;
+  /** Edge fade widths as fractions of the quad: left, right, bottom, top. */
+  feather?: THREE.Vector4;
 }
 
 export type SpriteMaterial = THREE.ShaderMaterial;
@@ -98,6 +119,7 @@ export function createSpriteMaterial(opts: SpriteMaterialOptions): SpriteMateria
       patternTint: { value: new THREE.Color(opts.patternTint ?? 0xffffff) },
       patternRepeat: { value: opts.patternRepeat ?? new THREE.Vector2(1, 1) },
       patternOffset: { value: opts.patternOffset ?? new THREE.Vector2(0, 0) },
+      feather: { value: opts.feather ?? new THREE.Vector4(0, 0, 0, 0) },
       glowColor: { value: new THREE.Color(0xffffff) },
       glowAmount: { value: 0 },
     },

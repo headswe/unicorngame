@@ -48,6 +48,8 @@ export const PART_ORDER = {
   body: 3,
   pattern: 4,
   mane: 5,
+  /** The ears, re-cut from the body and laid back over the mane. */
+  ears: 6,
   accessory: 7,
   bubble: 9,
 } as const;
