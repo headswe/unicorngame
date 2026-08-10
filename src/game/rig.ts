@@ -99,15 +99,15 @@ const PIVOT_BY_KIND: Partial<Record<PartKind, Pivot>> = {
 const PIVOT_BY_ID: Record<string, Pivot> = {
   horn_bojt: { x: 0.5, y: 0.04 },
 
-  man_vagig: { x: 0.76, y: 0.9 },
-  man_lockig: { x: 0.76, y: 0.84 },
-  man_taggig: { x: 0.82, y: 0.32, scale: 0.85 },
-  man_fladar: { x: 0.82, y: 0.9 },
+  man_vagig: { x: 0.4, y: 0.75 },
+  man_lockig: { x: 0.4, y: 0.7 },
+  man_taggig: { x: 0.4, y: 0.4, scale: 0.85 },
+  man_fladar: { x: 0.4, y: 0.7 },
 
-  svans_lang: { x: 0.88, y: 0.93 },
-  svans_puff: { x: 0.84, y: 0.8 },
-  svans_lockig: { x: 0.76, y: 0.93 },
-  svans_fjader: { x: 0.64, y: 0.92 },
+  svans_lang: { x: 1.05, y: 0.93 },
+  svans_puff: { x: 1.15, y: 0.8 },
+  svans_lockig: { x: 1.15, y: 0.93 },
+  svans_fjader: { x: 1, y: 0.92 },
 };
 
 export function pivotFor(part: Part): Pivot {
