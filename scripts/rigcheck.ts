@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 
 import type { AssetLibrary, PartInfo } from '../src/engine/assets.ts';
+import { composeParts } from './compose.ts';
 import { layoutUnicorn, pivotFor, rigFor, type LayoutDeps } from '../src/game/rig.ts';
 import { randomVariant } from '../src/game/variant.ts';
 
@@ -116,30 +117,103 @@ async function pivotCell(deps: Deps, id: string): Promise<Buffer> {
   );
 }
 
-/** An assembled unicorn, with the socket the swapped part hangs from marked. */
+/** An assembled unicorn at normal size. */
 async function assembledCell(deps: Deps, bodyId: string, override: Record<string, string>, title: string) {
   const variant = { ...randomVariant(deps as unknown as AssetLibrary, 'rigcheck'), bodyId, ...override };
-  const layers: sharp.OverlayOptions[] = [];
-
-  for (const p of layoutUnicorn(variant, deps)) {
-    const w = p.width * UNIT;
-    const h = p.height * UNIT;
-    layers.push({
-      input: await sharp(partFile(p.part.id))
-        .resize(Math.max(1, Math.round(w)), Math.max(1, Math.round(h)), { fit: 'fill' })
-        .png()
-        .toBuffer(),
-      left: Math.round(CELL / 2 + p.x * UNIT - w / 2),
-      top: Math.round(BASELINE - (p.y * UNIT + h / 2)),
-    });
-  }
+  const layers = await composeParts(layoutUnicorn(variant, deps), {
+    unit: UNIT,
+    originX: CELL / 2,
+    originY: BASELINE,
+    canvasWidth: CELL,
+    canvasHeight: CELL,
+    partFile,
+  });
   return cell(layers, '', title);
+}
+
+/**
+ * The head, blown up. Horn and mane seating is a matter of a few pixels at
+ * normal size, which is far too small to judge honestly.
+ */
+async function headCell(
+  deps: Deps,
+  bodyId: string,
+  override: Record<string, string>,
+  title: string,
+): Promise<Buffer> {
+  const zoom = 3;
+  const unit = UNIT * zoom;
+  const body = deps.get(bodyId);
+  const rig = rigFor(bodyId);
+
+  // Centre the crop on the poll, which is what is being judged.
+  const focusX = (rig.poll.x - 0.5) * unit * body.aspect;
+  const focusY = rig.poll.y * unit;
+
+  // Composited onto a canvas large enough for the zoomed body, then cropped
+  // back to one cell around the focus point.
+  const big = CELL * 4;
+  const variant = { ...randomVariant(deps as unknown as AssetLibrary, 'heads'), bodyId, ...override };
+
+  const all = await composeParts(layoutUnicorn(variant, deps), {
+    unit,
+    originX: big / 2 - focusX,
+    originY: big / 2 + focusY,
+    canvasWidth: big,
+    canvasHeight: big,
+    partFile,
+  });
+  // sharp rejects overlays that start outside the canvas.
+  const layers = all.filter((l) => (l.left ?? 0) >= -big && (l.top ?? 0) >= -big);
+
+  const composed = await sharp({
+    create: { width: big, height: big, channels: 4, background: { r: 226, g: 240, b: 233, alpha: 1 } },
+  })
+    .composite(layers)
+    .png()
+    .toBuffer();
+
+  const svg = Buffer.from(
+    `<svg width="${CELL}" height="${CELL}" xmlns="http://www.w3.org/2000/svg">
+       <text x="6" y="16" font-size="13" font-weight="bold" fill="#333">${title}</text>
+     </svg>`,
+  );
+  return sharp(composed)
+    .extract({ left: (big - CELL) / 2, top: (big - CELL) / 2, width: CELL, height: CELL })
+    .composite([{ input: svg }])
+    .png()
+    .toBuffer();
 }
 
 async function main() {
   const parts: PartInfo[] = JSON.parse(await readFile(MANIFEST, 'utf8'));
   const deps = makeDeps(parts);
-  const bodyId = process.argv[2] ?? 'kropp_normal';
+  const args = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+  const bodyId = args[0] ?? 'kropp_normal';
+
+  const ids2 = (kind: string) => parts.filter((p) => p.kind === kind).map((p) => p.id);
+
+  if (process.argv.includes('--heads')) {
+    const rows = [
+      await Promise.all(ids2('horn').map((id) => headCell(deps, bodyId, { hornId: id }, id))),
+      await Promise.all(ids2('mane').map((id) => headCell(deps, bodyId, { maneId: id }, id))),
+    ];
+    const sheet = await sharp({
+      create: {
+        width: 4 * CELL,
+        height: rows.length * CELL,
+        channels: 4,
+        background: { r: 255, g: 255, b: 255, alpha: 1 },
+      },
+    })
+      .composite(rows.flatMap((row, y) => row.map((input, x) => ({ input, left: x * CELL, top: y * CELL }))))
+      .png()
+      .toBuffer();
+    const out = join(ROOT, `.cache/heads-${bodyId}.png`);
+    await writeFile(out, sheet);
+    console.log(out);
+    return;
+  }
 
   const ids = (kind: string) => parts.filter((p) => p.kind === kind).map((p) => p.id);
 

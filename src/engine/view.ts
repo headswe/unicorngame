@@ -33,15 +33,21 @@ export const LAYER_ORDER = {
   ui: 1000000,
 } as const;
 
-/** Sub-order for the pieces that make up one character, back to front. */
+/**
+ * Sub-order for the pieces that make up one character, back to front.
+ *
+ * The horn goes *behind* the body on purpose. Drawn in front, its base is a
+ * rounded outlined cap sitting on the forehead — it reads as a hat. Drawn
+ * behind, the head's own silhouette cuts the base off and the horn reads as
+ * growing out of the skull, which is the whole illusion.
+ */
 export const PART_ORDER = {
   shadow: 0,
   tail: 1,
-  bodyBack: 2,
+  horn: 2,
   body: 3,
   pattern: 4,
   mane: 5,
-  horn: 6,
   accessory: 7,
   bubble: 9,
 } as const;

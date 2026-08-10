@@ -52,18 +52,18 @@ const DEFAULT_RIG: BodyRig = {
  */
 export const BODY_RIGS: Record<string, BodyRig> = {
   kropp_normal: {
-    poll: { x: 0.765, y: 0.82, scale: 0.42 },
-    crest: { x: 0.62, y: 0.82, scale: 0.46 },
+    poll: { x: 0.755, y: 0.78, scale: 0.46, rotation: -0.22 },
+    crest: { x: 0.635, y: 0.855, scale: 0.56 },
     dock: { x: 0.13, y: 0.5, scale: 0.5 },
   },
   kropp_liten: {
-    poll: { x: 0.72, y: 0.81, scale: 0.38 },
-    crest: { x: 0.575, y: 0.81, scale: 0.42 },
+    poll: { x: 0.715, y: 0.77, scale: 0.42, rotation: -0.22 },
+    crest: { x: 0.585, y: 0.845, scale: 0.5 },
     dock: { x: 0.12, y: 0.47, scale: 0.44 },
   },
   kropp_ludd: {
-    poll: { x: 0.755, y: 0.82, scale: 0.4 },
-    crest: { x: 0.625, y: 0.81, scale: 0.45 },
+    poll: { x: 0.745, y: 0.78, scale: 0.44, rotation: -0.22 },
+    crest: { x: 0.645, y: 0.845, scale: 0.55 },
     dock: { x: 0.12, y: 0.51, scale: 0.48 },
   },
 };
@@ -72,10 +72,17 @@ export function rigFor(bodyId: string): BodyRig {
   return BODY_RIGS[bodyId] ?? DEFAULT_RIG;
 }
 
-/** Point on an attachable sprite that lands on its socket. */
+/** How an attachable sprite meets its socket. */
 export interface Pivot {
+  /** The point on this sprite, 0..1, that is placed onto the socket. */
   x: number;
   y: number;
+  /**
+   * Multiplier on the socket's scale, for drawings whose subject fills their
+   * frame differently from the rest of the set — a wide fan of a mane needs to
+   * come out smaller than a narrow braid to cover the same neck.
+   */
+  scale?: number;
 }
 
 const PIVOT_BY_KIND: Partial<Record<PartKind, Pivot>> = {
@@ -94,7 +101,7 @@ const PIVOT_BY_ID: Record<string, Pivot> = {
 
   man_vagig: { x: 0.76, y: 0.9 },
   man_lockig: { x: 0.76, y: 0.84 },
-  man_taggig: { x: 0.68, y: 0.52 },
+  man_taggig: { x: 0.82, y: 0.32, scale: 0.85 },
   man_fladar: { x: 0.82, y: 0.9 },
 
   svans_lang: { x: 0.88, y: 0.93 },
@@ -172,7 +179,7 @@ export function layoutUnicorn(variant: UnicornVariant, assets: LayoutDeps): Plac
     if (!assets.has(id)) return;
     const part = assets.get(id);
     const pivot = pivotFor(part);
-    const height = socket.scale * bodyH;
+    const height = socket.scale * (pivot.scale ?? 1) * bodyH;
     const width = height * part.aspect;
     const at = socketPoint(socket);
     out.push({
