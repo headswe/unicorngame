@@ -36,9 +36,9 @@ jobs:
       # Runs the typecheck as well, so a broken build never reaches Pages.
       - run: npm run build
 
+      # Pages is enabled in the repository settings; the workflow token is not
+      # allowed to create the site itself, so this only reads the config.
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
