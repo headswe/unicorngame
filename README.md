@@ -4,6 +4,10 @@ A scrolling unicorn meadow for a six-year-old. TypeScript, three.js, and a set o
 sprites drawn by `gpt-image-2` that get stacked and recoloured at runtime so
 every unicorn is different.
 
+**▶ Play: <https://headswe.github.io/unicorngame/>**
+
+On a tablet, "Add to Home Screen" opens it full-screen without browser chrome.
+
 ```bash
 npm install
 npm run dev          # http://localhost:5173
@@ -142,6 +146,13 @@ angen.world.residents.length   // how many unicorns live here
 ```
 
 `node scripts/tour.mjs` walks the meadow and writes `.cache/tour-*.png`.
+
+## Deploying
+
+`.github/workflows/deploy.yml` builds and publishes to GitHub Pages on every
+push to the default branch. `base` is `'./'` in the Vite config, so the build is
+path-independent — it works at a repo subpath, at a domain root, or straight off
+the filesystem, with no rebuild.
 
 ## Not built yet
 
