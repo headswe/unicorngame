@@ -64,6 +64,14 @@ export class AssetLibrary {
           texture.colorSpace = THREE.NoColorSpace;
           texture.minFilter = THREE.LinearMipmapLinearFilter;
           texture.magFilter = THREE.LinearFilter;
+          if (info.kind === 'pattern') {
+            // Coat patterns are sampled several times across a body, so they
+            // have to tile. Mirroring rather than plain repeating means the
+            // generated tiles do not need to be perfectly seamless — the joins
+            // fold back on themselves and disappear.
+            texture.wrapS = THREE.MirroredRepeatWrapping;
+            texture.wrapT = THREE.MirroredRepeatWrapping;
+          }
           texture.generateMipmaps = true;
           texture.anisotropy = 4;
           this.parts.set(info.id, { ...info, texture });

@@ -41,21 +41,30 @@ const DEFAULT_RIG: BodyRig = {
   dock: { x: 0.06, y: 0.45, scale: 0.55 },
 };
 
+/**
+ * Measured off `npx tsx scripts/rigcheck.ts`, which marks each socket on the
+ * artwork. Two rules keep them honest:
+ *
+ * - The poll sits on the *forehead*, in front of the ear and a little inside
+ *   the skull, so the horn grows out of the head rather than hovering over it.
+ * - The crest sits just behind the ear at the top of the neck, low enough that
+ *   the hair rests on the neck instead of floating above it.
+ */
 export const BODY_RIGS: Record<string, BodyRig> = {
   kropp_normal: {
-    poll: { x: 0.68, y: 0.87, scale: 0.44 },
-    crest: { x: 0.6, y: 0.88, scale: 0.62 },
-    dock: { x: 0.13, y: 0.5, scale: 0.55 },
+    poll: { x: 0.765, y: 0.82, scale: 0.42 },
+    crest: { x: 0.62, y: 0.82, scale: 0.46 },
+    dock: { x: 0.13, y: 0.5, scale: 0.5 },
   },
   kropp_liten: {
-    poll: { x: 0.65, y: 0.88, scale: 0.4 },
-    crest: { x: 0.56, y: 0.89, scale: 0.56 },
-    dock: { x: 0.12, y: 0.47, scale: 0.48 },
+    poll: { x: 0.72, y: 0.81, scale: 0.38 },
+    crest: { x: 0.575, y: 0.81, scale: 0.42 },
+    dock: { x: 0.12, y: 0.47, scale: 0.44 },
   },
   kropp_ludd: {
-    poll: { x: 0.7, y: 0.89, scale: 0.42 },
-    crest: { x: 0.62, y: 0.9, scale: 0.6 },
-    dock: { x: 0.12, y: 0.51, scale: 0.53 },
+    poll: { x: 0.755, y: 0.82, scale: 0.4 },
+    crest: { x: 0.625, y: 0.81, scale: 0.45 },
+    dock: { x: 0.12, y: 0.51, scale: 0.48 },
   },
 };
 
@@ -85,7 +94,7 @@ const PIVOT_BY_ID: Record<string, Pivot> = {
 
   man_vagig: { x: 0.76, y: 0.9 },
   man_lockig: { x: 0.76, y: 0.84 },
-  man_taggig: { x: 0.5, y: 0.58 },
+  man_taggig: { x: 0.68, y: 0.52 },
   man_fladar: { x: 0.82, y: 0.9 },
 
   svans_lang: { x: 0.88, y: 0.93 },

@@ -90,8 +90,10 @@ export class Unicorn {
       patternMap: placed.pattern?.part.texture,
       patternTint: placed.pattern?.tint,
       patternAmount: placed.pattern?.amount,
+      // The body quad is wider than it is tall, so the horizontal repeat is
+      // stretched to match — otherwise round dots come out as ovals.
       patternRepeat: placed.pattern
-        ? new THREE.Vector2(placed.pattern.repeat, placed.pattern.repeat)
+        ? new THREE.Vector2(placed.pattern.repeat * placed.part.aspect, placed.pattern.repeat)
         : undefined,
     });
 
