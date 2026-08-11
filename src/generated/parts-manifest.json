@@ -319,6 +319,28 @@
     "tintable": false
   },
   {
+    "id": "bajs_regnbage",
+    "kind": "prop",
+    "label": "Regnbågsbajs",
+    "url": "assets/parts/bajs_regnbage.png",
+    "width": 447,
+    "height": 512,
+    "aspect": 0.873046875,
+    "worldHeight": 0.46,
+    "tintable": false
+  },
+  {
+    "id": "spade",
+    "kind": "prop",
+    "label": "Spade",
+    "url": "assets/parts/spade.png",
+    "width": 512,
+    "height": 161,
+    "aspect": 3.1801242236024843,
+    "worldHeight": 0.35,
+    "tintable": false
+  },
+  {
     "id": "moln_stort",
     "kind": "cloud",
     "label": "Moln",

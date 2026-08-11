@@ -126,6 +126,34 @@
         background: #e6e0da;
         opacity: 0.75;
       }
+      .hud-tally {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        font-size: 1.1rem;
+        font-weight: bold;
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        background: #ffe9c9;
+        border: 2px solid var(--ink);
+        transition: transform 0.15s ease;
+      }
+      .hud-tally[hidden] {
+        display: none;
+      }
+      .hud-tally.pop {
+        animation: tally-pop 0.35s ease;
+      }
+      @keyframes tally-pop {
+        40% {
+          transform: scale(1.28) rotate(-4deg);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .hud-tally.pop {
+          animation: none;
+        }
+      }
       .hud-hint {
         margin: 0;
         font-size: 0.9rem;

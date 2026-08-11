@@ -18,6 +18,7 @@ import { createGround } from './ground.ts';
 import { WanderingUnicorn } from './npc.ts';
 import type { WorldBounds } from './player.ts';
 import { shadowTexture } from './shadow.ts';
+import { PoopField } from './poop.ts';
 import { Unicorn } from './unicorn.ts';
 import { randomVariant } from './variant.ts';
 
@@ -40,6 +41,12 @@ export const HORIZON_Y = 40;
 const CLEARING_RADIUS = 6;
 
 export const SPAWN = { x: 0, y: 8 };
+
+/** Where the shovel is lying when the game starts — in plain sight of spawn. */
+export const SHOVEL_SPOT = { x: 4.2, y: 9.5 };
+
+/** Seconds between one unicorn's presents. Long enough to stay a treat. */
+const POOP_INTERVAL = { min: 14, max: 38 };
 
 interface ScatterSpec {
   id: string;
@@ -71,8 +78,14 @@ export class World {
   readonly backdrop: Backdrop;
   readonly player: Unicorn;
   readonly residents: WanderingUnicorn[] = [];
+  readonly poop: PoopField;
+
+  /** Called when a unicorn leaves a present, so the game can make a noise. */
+  onPoop: (() => void) | null = null;
 
   private readonly decor: THREE.Group = new THREE.Group();
+  private readonly poopTimers: number[] = [];
+  private shovelSprite: THREE.Object3D | null = null;
 
   constructor(
     private readonly assets: AssetLibrary,
@@ -92,6 +105,10 @@ export class World {
 
     this.scene.add(this.decor);
     this.scatterScenery(rng);
+
+    this.poop = new PoopField(assets);
+    this.scene.add(this.poop.group);
+    this.placeShovel();
 
     this.player = playerUnicorn;
     this.player.x = SPAWN.x;
@@ -177,10 +194,66 @@ export class World {
       this.residents.push(
         new WanderingUnicorn(unicorn, makeRng(`vandra-${i}`), x, y, rng.range(3, 9), WORLD_BOUNDS),
       );
+      // Staggered, so the meadow does not fill up all at once at the start.
+      this.poopTimers.push(rng.range(4, POOP_INTERVAL.max));
     }
   }
 
-  update(dt: number): void {
-    for (const resident of this.residents) resident.update(dt);
+  /** Lays the shovel on the grass for the player to find. */
+  private placeShovel(): void {
+    if (!this.assets.has('spade')) return;
+    const part = this.assets.get('spade');
+    const order = depthOrder(SHOVEL_SPOT.y);
+    const group = new THREE.Group();
+
+    const shadowPart = shadowTexture();
+    if (shadowPart) {
+      const shadow = createSprite(shadowPart, { height: 0.12, pivotY: 0.5, opacity: 0.4 });
+      shadow.position.y = 0.02;
+      shadow.renderOrder = order + PART_ORDER.shadow;
+      group.add(shadow);
+    }
+
+    const sprite = createSprite(part, { height: part.worldHeight });
+    sprite.renderOrder = order + PART_ORDER.body;
+    group.add(sprite);
+
+    group.position.set(SHOVEL_SPOT.x, projectY(SHOVEL_SPOT.y), 0);
+    this.scene.add(group);
+    this.shovelSprite = group;
   }
+
+  /** Removes the shovel from the grass once it has been picked up. */
+  takeShovel(): void {
+    this.shovelSprite?.removeFromParent();
+    this.shovelSprite = null;
+  }
+
+  get shovelOnGround(): boolean {
+    return this.shovelSprite !== null;
+  }
+
+  update(dt: number): void {
+    for (const [i, resident] of this.residents.entries()) {
+      resident.update(dt);
+
+      // Presents arrive on each unicorn's own clock, so they never all go at
+      // once, and only while it is standing still.
+      this.poopTimers[i] = (this.poopTimers[i] ?? 0) - dt;
+      if ((this.poopTimers[i] ?? 0) <= 0) {
+        this.poopTimers[i] = randomBetween(POOP_INTERVAL.min, POOP_INTERVAL.max);
+        const unicorn = resident.unicorn;
+        // Behind the unicorn, which is where you would expect to find it.
+        if (this.poop.spawn(unicorn.x - unicorn.facing * 0.55, unicorn.y - 0.15)) {
+          this.onPoop?.();
+        }
+      }
+    }
+
+    this.poop.update(dt);
+  }
+}
+
+function randomBetween(min: number, max: number): number {
+  return min + Math.random() * (max - min);
 }

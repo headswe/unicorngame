@@ -21,6 +21,9 @@ export interface HudOptions {
 export class Hud {
   private readonly root: HTMLDivElement;
   private readonly nameLabel: HTMLSpanElement;
+  private readonly tally: HTMLSpanElement;
+  private readonly tallyCount: HTMLSpanElement;
+  private hint: string | null = null;
 
   constructor(parent: HTMLElement, callbacks: HudCallbacks, options: HudOptions) {
     this.root = document.createElement('div');
@@ -28,6 +31,7 @@ export class Hud {
     this.root.innerHTML = `
       <div class="hud-card">
         <span class="hud-name"></span>
+        <span class="hud-tally" hidden><span class="hud-tally-icon" aria-hidden="true">💩</span><span class="hud-tally-count">0</span></span>
         <button type="button" class="hud-button" aria-label="Skapa en ny enhörning">
           <span aria-hidden="true">🎲</span> Ny enhörning
         </button>
@@ -42,8 +46,14 @@ export class Hud {
     const nameLabel = this.root.querySelector<HTMLSpanElement>('.hud-name');
     const button = this.root.querySelector<HTMLButtonElement>('.hud-button');
     const music = this.root.querySelector<HTMLButtonElement>('.hud-music');
-    if (!nameLabel || !button || !music) throw new Error('hud markup did not build');
+    const tally = this.root.querySelector<HTMLSpanElement>('.hud-tally');
+    const tallyCount = this.root.querySelector<HTMLSpanElement>('.hud-tally-count');
+    if (!nameLabel || !button || !music || !tally || !tallyCount) {
+      throw new Error('hud markup did not build');
+    }
     this.nameLabel = nameLabel;
+    this.tally = tally;
+    this.tallyCount = tallyCount;
 
     if (!options.hasMusic) {
       music.remove();
@@ -78,6 +88,26 @@ export class Hud {
 
   setName(name: string): void {
     this.nameLabel.textContent = name;
+  }
+
+  /** Shows the tally of poops shovelled, once there is a shovel to do it with. */
+  setCleaned(count: number): void {
+    this.tally.hidden = false;
+    this.tallyCount.textContent = String(count);
+    // A quick pop, so a six-year-old can see the number react.
+    this.tally.classList.remove('pop');
+    void this.tally.offsetWidth;
+    this.tally.classList.add('pop');
+  }
+
+  /** Replaces the hint line. Passing null restores the controls reminder. */
+  setHint(text: string | null): void {
+    const el = this.root.querySelector<HTMLParagraphElement>('.hud-hint');
+    if (!el) return;
+    if (text === this.hint) return;
+    this.hint = text;
+    el.textContent = text ?? 'Gå med pilarna · eller peka där du vill gå';
+    el.classList.remove('gone');
   }
 
   /** Fades the hint out once the player has clearly worked out the controls. */

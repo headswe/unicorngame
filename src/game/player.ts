@@ -16,6 +16,12 @@ const SPEED = 6.4;
 /** How close counts as having arrived at a tapped spot. */
 const ARRIVAL = 0.35;
 
+/**
+ * World units between hoofbeats. Tying footsteps to distance rather than to a
+ * clock means they slow down as the unicorn eases to a halt, for free.
+ */
+const STEP_DISTANCE = 1.25;
+
 export interface WorldBounds {
   minX: number;
   maxX: number;
@@ -30,6 +36,12 @@ export class PlayerController {
   /** True while the unicorn is actually travelling — drives the walk cycle. */
   moving = false;
 
+  /** Called on each hoofbeat, for the footstep sound. */
+  onStep: (() => void) | null = null;
+
+  private travelled = 0;
+  private ignorePointer = false;
+
   constructor(
     readonly unicorn: Unicorn,
     private readonly bounds: WorldBounds,
@@ -41,6 +53,15 @@ export class PlayerController {
     this.moving = false;
   }
 
+  /**
+   * Ignores the rest of the current press. Used when a tap was aimed at
+   * something — shovelling a poop should not also order a walk to that spot.
+   */
+  suppressPointer(): void {
+    this.ignorePointer = true;
+    this.target = null;
+  }
+
   update(
     dt: number,
     input: Input,
@@ -50,9 +71,12 @@ export class PlayerController {
     const axis = input.moveAxis();
     const keyboard = axis.x !== 0 || axis.y !== 0;
 
+    if (!input.pointer.down) this.ignorePointer = false;
+
     if (keyboard) {
       this.target = null;
-    } else if (input.pointer.down) {
+      this.ignorePointer = false;
+    } else if (input.pointer.down && !this.ignorePointer) {
       this.target = camera.screenToWorld(input.pointer.x, input.pointer.y, viewport);
     }
 
@@ -82,9 +106,17 @@ export class PlayerController {
     this.moving = speed > 0.05;
 
     if (this.moving) {
-      this.unicorn.x += dx * SPEED * dt;
-      this.unicorn.y += dy * SPEED * dt;
+      const stepX = dx * SPEED * dt;
+      const stepY = dy * SPEED * dt;
+      this.unicorn.x += stepX;
+      this.unicorn.y += stepY;
       this.unicorn.faceMovement(dx);
+
+      this.travelled += Math.hypot(stepX, stepY);
+      if (this.travelled >= STEP_DISTANCE) {
+        this.travelled %= STEP_DISTANCE;
+        this.onStep?.();
+      }
     }
 
     this.unicorn.x = clamp(this.unicorn.x, this.bounds.minX, this.bounds.maxX);

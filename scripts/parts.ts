@@ -135,6 +135,20 @@ const decor = (
   prompt: `${STYLE}. ${description} ${ISOLATED}`,
 });
 
+const prop = (
+  id: string,
+  label: string,
+  description: string,
+  worldHeight: number,
+): PartSpec => ({
+  id,
+  kind: 'prop',
+  label,
+  worldHeight,
+  fullColour: true,
+  prompt: `${STYLE}. ${description} ${ISOLATED}`,
+});
+
 export const PARTS: PartSpec[] = [
   // --- bodies ---------------------------------------------------------------
   body(
@@ -271,6 +285,25 @@ export const PARTS: PartSpec[] = [
     'Äppelkorg',
     'A woven wicker basket piled with shiny red apples, seen from the side.',
     0.45,
+  ),
+
+  // --- caretaking props -----------------------------------------------------
+  prop(
+    'bajs_regnbage',
+    'Regnbågsbajs',
+    'A small, tidy, cheerful cartoon poop: the classic soft-serve spiral of ' +
+      'three coils stacked into a point, but coloured in bright rainbow ' +
+      'stripes — red, orange, yellow, green, blue and violet swirling up the ' +
+      'spiral — with a couple of little sparkles. It looks sweet and clean, ' +
+      'like candy or frosting, not dirty at all.',
+    0.46,
+  ),
+  prop(
+    'spade',
+    'Spade',
+    'A small garden scoop shovel lying on its side, with a rounded wooden ' +
+      'handle and a shiny pale metal blade, seen from the side.',
+    0.35,
   ),
 
   // --- sky ------------------------------------------------------------------

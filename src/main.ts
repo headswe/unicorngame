@@ -9,12 +9,13 @@ import * as THREE from 'three';
 import { AssetLibrary } from './engine/assets.ts';
 import { Input } from './engine/input.ts';
 import { Music } from './engine/music.ts';
+import { Sfx } from './engine/sfx.ts';
 import { MeadowCamera, projectY, type ViewportSize } from './engine/view.ts';
 import { Hud } from './game/hud.ts';
 import { PlayerController, clamp } from './game/player.ts';
 import { Unicorn } from './game/unicorn.ts';
 import { loadVariant, randomSeed, randomVariant, saveVariant } from './game/variant.ts';
-import { World, WORLD_BOUNDS } from './game/world.ts';
+import { World, WORLD_BOUNDS, SHOVEL_SPOT } from './game/world.ts';
 
 /** How much sky is allowed above the far edge of the meadow. */
 const SKY_HEADROOM = 5;
@@ -23,6 +24,9 @@ const SOUTH_MARGIN = 3;
 
 /** Longest frame the simulation will accept, so a background tab cannot warp. */
 const MAX_STEP = 1 / 20;
+
+/** How close the player has to get to pick the shovel up off the grass. */
+const SHOVEL_PICKUP = 1.6;
 
 /**
  * The whole renderer works in sRGB byte space, so three must not helpfully
@@ -67,11 +71,14 @@ async function start(): Promise<void> {
   let player = new Unicorn(variant, assets);
   const world = new World(assets, player);
   let controller = new PlayerController(player, WORLD_BOUNDS);
+  controller.onStep = () => sfx.step();
 
   const camera = new MeadowCamera(9.5);
   const input = new Input(renderer.domElement);
 
   const music = new Music();
+  // Effects follow the same on/off switch as the music.
+  const sfx = new Sfx(() => music.enabled);
 
   const hud = new Hud(container, {
     onToggleMusic: () => music.toggle(),
@@ -89,6 +96,7 @@ async function start(): Promise<void> {
       world.scene.add(replacement.group);
       player = replacement;
       controller = new PlayerController(player, WORLD_BOUNDS);
+      controller.onStep = () => sfx.step();
       player.update(0, false);
       hud.setName(next.name);
     },
@@ -98,6 +106,72 @@ async function start(): Promise<void> {
   // Browsers will not allow this before the player touches something; Music
   // handles the retry itself.
   void music.start();
+
+  world.onPoop = () => sfx.plop();
+
+  // The player's own unicorn is a pony like any other. Rarer, so it reads as a
+  // surprise rather than a nuisance while you are trying to tidy up.
+  let playerPoopIn = 30 + Math.random() * 40;
+
+  // --- caretaking ----------------------------------------------------------
+  let hasShovel = false;
+  let spaceHeld = false;
+
+  const takeShovel = (): void => {
+    hasShovel = true;
+    world.takeShovel();
+    sfx.pickup();
+    hud.setCleaned(world.poop.cleaned);
+    hud.setHint('Peka på bajset för att skotta upp det!');
+  };
+
+  const shovelPoop = (): boolean => {
+    if (!hasShovel) return false;
+    const target = world.poop.nearest(player.x, player.y);
+    if (!target || !world.poop.clean(target)) return false;
+    sfx.sparkle();
+    hud.setCleaned(world.poop.cleaned);
+    return true;
+  };
+
+  const caretaking = (dt: number): void => {
+    playerPoopIn -= dt;
+    if (playerPoopIn <= 0) {
+      playerPoopIn = 30 + Math.random() * 40;
+      if (!controller.moving && world.poop.spawn(player.x - player.facing * 0.55, player.y - 0.15)) {
+        sfx.plop();
+      }
+    }
+
+    // Walking up to the shovel is enough to pick it up — no button to find.
+    if (!hasShovel && world.shovelOnGround) {
+      if (Math.hypot(player.x - SHOVEL_SPOT.x, player.y - SHOVEL_SPOT.y) < SHOVEL_PICKUP) {
+        takeShovel();
+      } else if (world.poop.count > 0) {
+        hud.setHint('Hitta spaden för att städa!');
+      }
+    }
+
+    // Tapping a poop within reach shovels it, and that tap must not also be
+    // read as "walk over there".
+    if (hasShovel && input.pointer.pressed) {
+      const at = camera.screenToWorld(input.pointer.x, input.pointer.y, viewport);
+      const target = world.poop.findTarget(at.x, at.y, player.x, player.y);
+      if (target && world.poop.clean(target)) {
+        sfx.sparkle();
+        hud.setCleaned(world.poop.cleaned);
+        controller.suppressPointer();
+      }
+    }
+
+    // The keyboard equivalent: stand next to one and press space.
+    if (hasShovel && input.isDown('Space')) {
+      if (!spaceHeld) shovelPoop();
+      spaceHeld = true;
+    } else {
+      spaceHeld = false;
+    }
+  };
 
   const viewport: ViewportSize = { width: 0, height: 0 };
 
@@ -144,7 +218,7 @@ async function start(): Promise<void> {
 
   if (import.meta.env.DEV) {
     // Handy for poking at the meadow from the console while tuning.
-    Object.assign(window, { angen: { world, camera, assets, music, get player() { return player; } } });
+    Object.assign(window, { angen: { world, camera, assets, music, sfx, input, get player() { return player; } } });
   }
 
   loading?.classList.add('done');
@@ -156,6 +230,7 @@ async function start(): Promise<void> {
     last = now;
 
     input.beginFrame();
+    caretaking(dt);
     controller.update(dt, input, camera, viewport);
     world.update(dt);
     followPlayer(dt, false);

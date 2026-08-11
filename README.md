@@ -23,6 +23,8 @@ play — only to draw new parts.
 | Arrow keys / WASD | Walk |
 | Tap or drag anywhere | Walk to that spot |
 | **Ny enhörning** | Roll a brand-new unicorn (saved in the browser) |
+| Walk into the shovel | Pick it up |
+| Tap a poop nearby (or Space) | Shovel it up |
 
 Both schemes are live at once, so a laptop and a tablet behave the same.
 
@@ -146,6 +148,19 @@ angen.world.residents.length   // how many unicorns live here
 ```
 
 `node scripts/tour.mjs` walks the meadow and writes `.cache/tour-*.png`.
+
+## Caretaking
+
+Unicorns leave rainbow poop behind them every half-minute or so. Walk into the
+shovel lying near the spawn point to pick it up, then tap a poop within reach to
+clear it — a tap aimed at a poop is swallowed so it does not also order a walk,
+and a distant poop just walks you over instead of being cleaned from across the
+meadow. Space does the same thing for keyboard players.
+
+Sounds are synthesised in `src/engine/sfx.ts` rather than loaded: a C major
+arpeggio for tidying up, a soft bloop for the poop, and filtered noise for
+hooves. Footsteps are tied to distance travelled, not to a clock, so they slow
+down as the unicorn eases to a halt. All of it follows the music on/off switch.
 
 ## Music
 
