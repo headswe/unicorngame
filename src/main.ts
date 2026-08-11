@@ -8,6 +8,7 @@ import * as THREE from 'three';
 
 import { AssetLibrary } from './engine/assets.ts';
 import { Input } from './engine/input.ts';
+import { Music } from './engine/music.ts';
 import { MeadowCamera, projectY, type ViewportSize } from './engine/view.ts';
 import { Hud } from './game/hud.ts';
 import { PlayerController, clamp } from './game/player.ts';
@@ -70,7 +71,10 @@ async function start(): Promise<void> {
   const camera = new MeadowCamera(9.5);
   const input = new Input(renderer.domElement);
 
+  const music = new Music();
+
   const hud = new Hud(container, {
+    onToggleMusic: () => music.toggle(),
     onReroll: () => {
       const next = randomVariant(assets, randomSeed());
       saveVariant(next);
@@ -88,8 +92,12 @@ async function start(): Promise<void> {
       player.update(0, false);
       hud.setName(next.name);
     },
-  });
+  }, { hasMusic: music.available, musicOn: music.enabled });
   hud.setName(variant.name);
+
+  // Browsers will not allow this before the player touches something; Music
+  // handles the retry itself.
+  void music.start();
 
   const viewport: ViewportSize = { width: 0, height: 0 };
 
@@ -136,7 +144,7 @@ async function start(): Promise<void> {
 
   if (import.meta.env.DEV) {
     // Handy for poking at the meadow from the console while tuning.
-    Object.assign(window, { angen: { world, camera, assets, get player() { return player; } } });
+    Object.assign(window, { angen: { world, camera, assets, music, get player() { return player; } } });
   }
 
   loading?.classList.add('done');

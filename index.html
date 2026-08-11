@@ -99,6 +99,33 @@
         outline: 3px solid #2f6fb5;
         outline-offset: 3px;
       }
+      .hud-icon {
+        font-size: 1.2rem;
+        line-height: 1;
+        width: 2.9rem;
+        height: 2.9rem;
+        display: grid;
+        place-items: center;
+        border: 3px solid var(--ink);
+        border-radius: 50%;
+        background: #cfe9dd;
+        cursor: pointer;
+        transition: transform 0.12s ease, background 0.12s ease;
+      }
+      .hud-icon:hover {
+        background: #b9e0cf;
+      }
+      .hud-icon:active {
+        transform: translateY(2px) scale(0.97);
+      }
+      .hud-icon:focus-visible {
+        outline: 3px solid #2f6fb5;
+        outline-offset: 3px;
+      }
+      .hud-icon.off {
+        background: #e6e0da;
+        opacity: 0.75;
+      }
       .hud-hint {
         margin: 0;
         font-size: 0.9rem;
