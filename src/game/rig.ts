@@ -53,6 +53,16 @@ export interface BodyRig {
    * Keep it tight to the ears: everything inside also covers the mane.
    */
   ears?: Rect;
+  /**
+   * Nudges where the ear patch is *drawn*, without changing where it is cut
+   * from — which is how the ears can be shifted forward at all, given they are
+   * painted into the body and cannot be moved there.
+   *
+   * Keep it small. The copy has to stay overlapping the ear it was cut from,
+   * or the original shows behind it as a doubled edge — measurably so past
+   * about 0.015 with the current feather widths.
+   */
+  earsOffset?: { x: number; y: number };
 }
 
 const DEFAULT_RIG: BodyRig = {
@@ -76,12 +86,14 @@ export const BODY_RIGS: Record<string, BodyRig> = {
     crest: { x: 0.635, y: 0.855, scale: 0.56 },
     dock: { x: 0.13, y: 0.5, scale: 0.5 },
     ears: { x: 0.585, y: 0.83, width: 0.17, height: 0.17 },
+    earsOffset: { x: 0.012, y: 0 },
   },
   kropp_liten: {
     poll: { x: 0.715, y: 0.77, scale: 0.42, rotation: -0.22 },
     crest: { x: 0.585, y: 0.845, scale: 0.5 },
     dock: { x: 0.12, y: 0.47, scale: 0.44 },
     ears: { x: 0.49, y: 0.815, width: 0.175, height: 0.185 },
+    earsOffset: { x: 0.012, y: 0 },
   },
   kropp_ludd: {
     poll: { x: 0.745, y: 0.78, scale: 0.44, rotation: -0.22 },
@@ -89,6 +101,7 @@ export const BODY_RIGS: Record<string, BodyRig> = {
     dock: { x: 0.12, y: 0.51, scale: 0.48 },
     // This one shows both ears, so the patch reaches further back.
     ears: { x: 0.575, y: 0.83, width: 0.245, height: 0.17 },
+    earsOffset: { x: 0.012, y: 0 },
   },
 };
 
@@ -271,12 +284,15 @@ export function layoutUnicorn(variant: UnicornVariant, assets: LayoutDeps): Plac
   // with the body underneath — only the mane is covered.
   if (rig.ears) {
     const { x, y, width, height } = rig.ears;
+    const shift = rig.earsOffset ?? { x: 0, y: 0 };
+    const centreX = (x + width / 2 - 0.5 + shift.x) * bodyW;
+    const centreY = (y + height / 2 + shift.y) * bodyH;
     out.push({
       part: body,
-      x: (x + width / 2 - 0.5) * bodyW,
-      y: (y + height / 2) * bodyH,
-      anchorX: (x + width / 2 - 0.5) * bodyW,
-      anchorY: (y + height / 2) * bodyH,
+      x: centreX,
+      y: centreY,
+      anchorX: centreX,
+      anchorY: centreY,
       pivotX: 0.5,
       pivotY: 0.5,
       width: width * bodyW,
