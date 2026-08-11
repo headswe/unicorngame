@@ -1,9 +1,9 @@
 /**
  * Background music.
  *
- * Any audio file dropped into src/assets/music/ is picked up at build time — no
- * filename to keep in sync, and nothing to 404 when the folder is empty. Several
- * files play as a playlist; one file loops on its own.
+ * Any audio file dropped into public/assets/music/ is picked up — no filename to
+ * keep in sync, and nothing to request when the folder is empty. Several files
+ * play as a playlist; one file loops on its own.
  *
  * Two things make this fiddlier than "call play()":
  *
@@ -15,13 +15,10 @@
  *   on/off choice is remembered.
  */
 
-const TRACKS: string[] = Object.values(
-  import.meta.glob('../assets/music/*.{mp3,ogg,m4a,wav}', {
-    eager: true,
-    query: '?url',
-    import: 'default',
-  }) as Record<string, string>,
-).sort();
+import tracks from 'virtual:music';
+
+/** Resolved against the page, so the game still works from a subpath. */
+const TRACKS: string[] = tracks.map((path) => new URL(path, document.baseURI).href);
 
 /** Quiet enough to sit under a conversation in the room. */
 const VOLUME = 0.18;
@@ -45,15 +42,22 @@ export class Music {
     if (!TRACKS.length) return;
 
     this.audio = new Audio();
+    // The sprites have already finished loading by the time this runs, so the
+    // track is not competing with them for the connection.
     this.audio.preload = 'auto';
     this.audio.volume = 0;
-    // Each track is followed by the next, wrapping — which also loops a single
-    // track without needing a separate case.
-    this.audio.addEventListener('ended', () => {
-      this.index = (this.index + 1) % TRACKS.length;
-      this.load();
-      void this.audio?.play().catch(() => undefined);
-    });
+    // A lone track loops natively, which is seamless. Re-assigning the same src
+    // on 'ended' would work too, but it resets the element and re-buffers a few
+    // megabytes every time round.
+    if (TRACKS.length === 1) {
+      this.audio.loop = true;
+    } else {
+      this.audio.addEventListener('ended', () => {
+        this.index = (this.index + 1) % TRACKS.length;
+        this.load();
+        void this.audio?.play().catch(() => undefined);
+      });
+    }
     this.load();
 
     document.addEventListener('visibilitychange', () => {

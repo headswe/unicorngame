@@ -147,6 +147,22 @@ angen.world.residents.length   // how many unicorns live here
 
 `node scripts/tour.mjs` walks the meadow and writes `.cache/tour-*.png`.
 
+## Music
+
+Drop an audio file into `public/assets/music/` and it becomes the background
+music — no code change and no filename to register. A small Vite plugin lists
+whatever is in that folder (`.mp3`, `.ogg`, `.m4a`, `.wav`); several files play
+as a playlist in filename order, a single file loops natively.
+
+It plays at 18% volume (`VOLUME` in `src/engine/music.ts`), fades in, stops
+while the tab is hidden, and can be switched off with the button in the HUD,
+which is remembered between visits. Browsers refuse audio before the first
+interaction, so the opening `play()` is expected to fail and is retried on the
+first tap or key press.
+
+The file is downloaded in full, so keep an eye on its size — it is currently the
+largest thing in the build.
+
 ## Deploying
 
 `.github/workflows/deploy.yml` builds and publishes to GitHub Pages on every
