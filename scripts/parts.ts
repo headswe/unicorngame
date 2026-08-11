@@ -291,11 +291,13 @@ export const PARTS: PartSpec[] = [
   prop(
     'bajs_regnbage',
     'Regnbågsbajs',
-    'A small, tidy, cheerful cartoon poop: the classic soft-serve spiral of ' +
-      'three coils stacked into a point, but coloured in bright rainbow ' +
-      'stripes — red, orange, yellow, green, blue and violet swirling up the ' +
-      'spiral — with a couple of little sparkles. It looks sweet and clean, ' +
-      'like candy or frosting, not dirty at all.',
+    'A small, tidy cartoon poop: the classic soft-serve spiral of three ' +
+      'coils stacked into a point, coloured in bright rainbow stripes — red, ' +
+      'orange, yellow, green, blue and violet swirling up the spiral — with a ' +
+      'couple of little sparkles. It looks sweet and clean, like swirled ' +
+      'frosting, not dirty at all. Very important: it has NO face — no eyes, ' +
+      'no mouth, no eyebrows, no blushing cheeks, no expression of any kind. ' +
+      'It is only the plain rainbow swirl.',
     0.46,
   ),
   prop(
