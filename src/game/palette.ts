@@ -5,8 +5,19 @@ export interface NamedColour {
   hex: number;
 }
 
+/**
+ * Not a colour at all: a marker meaning "run a rainbow across this part".
+ *
+ * Colours on a variant are plain numbers so they can be saved and compared, so
+ * the rainbow rides along as a value no real colour can take. Anything reading
+ * a colour has to check for it — see `sprite-material`, which switches the
+ * shader to a hue ramp instead of a flat multiply.
+ */
+export const RAINBOW = -1;
+
 /** Coat colours — soft and pastel, so the dark outlines still read. */
 export const COATS: NamedColour[] = [
+  { label: 'Regnbåge', hex: RAINBOW },
   { label: 'Rosa', hex: 0xffd3e0 },
   { label: 'Grädde', hex: 0xffeccd },
   { label: 'Himmelsblå', hex: 0xd4e7ff },
@@ -23,6 +34,7 @@ export const COATS: NamedColour[] = [
 
 /** Mane and tail colours — bright, because that is the fun part. */
 export const HAIR: NamedColour[] = [
+  { label: 'Regnbåge', hex: RAINBOW },
   { label: 'Turkos', hex: 0x53bcd8 },
   { label: 'Rosa', hex: 0xff8fb8 },
   { label: 'Lila', hex: 0x9a7ce0 },
@@ -37,6 +49,7 @@ export const HAIR: NamedColour[] = [
 
 /** Horn colours — mostly metallic. */
 export const HORNS: NamedColour[] = [
+  { label: 'Regnbåge', hex: RAINBOW },
   { label: 'Guld', hex: 0xffd479 },
   { label: 'Silver', hex: 0xe8eef4 },
   { label: 'Rosenguld', hex: 0xffc2b8 },

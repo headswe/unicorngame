@@ -10,6 +10,7 @@
 
 import sharp from 'sharp';
 
+import { RAINBOW } from '../src/game/palette.ts';
 import type { PlacedPart } from '../src/game/rig.ts';
 
 export interface ComposeOptions {
@@ -49,6 +50,47 @@ async function centreOnPivot(
     .toBuffer();
 
   return { buffer, width, height };
+}
+
+/**
+ * Matches the shader's hue ramp: red at the top down to violet at the bottom.
+ *
+ * `uv` is the slice of the source sprite this image was cut from, so a patch —
+ * the ears — takes the colours the whole sprite would have had there.
+ */
+async function rainbowTint(
+  png: Buffer,
+  w: number,
+  h: number,
+  uv?: { y: number; height: number },
+): Promise<Buffer> {
+  const vTop = uv ? uv.y + uv.height : 1;
+  const vBottom = uv ? uv.y : 0;
+
+  const ramp = Buffer.alloc(w * h * 4);
+  for (let y = 0; y < h; y++) {
+    // hsv(h, 0.62, 1) with hue sweeping 0..0.8, the same as sprite-material.
+    const position = vTop + ((y + 0.5) / h) * (vBottom - vTop);
+    const hue = (1 - position) * 0.8;
+    const i = Math.floor(hue * 6) % 6;
+    const f = hue * 6 - Math.floor(hue * 6);
+    const v = 255;
+    const p = Math.round(v * (1 - 0.62));
+    const q = Math.round(v * (1 - 0.62 * f));
+    const t = Math.round(v * (1 - 0.62 * (1 - f)));
+    const rgb = [[v, t, p], [q, v, p], [p, v, t], [p, q, v], [t, p, v], [v, p, q]][i]!;
+    for (let x = 0; x < w; x++) {
+      const o = (y * w + x) * 4;
+      ramp[o] = rgb[0]!;
+      ramp[o + 1] = rgb[1]!;
+      ramp[o + 2] = rgb[2]!;
+      ramp[o + 3] = 255;
+    }
+  }
+  return sharp(png)
+    .composite([{ input: ramp, raw: { width: w, height: h, channels: 4 }, blend: 'multiply' }])
+    .png()
+    .toBuffer();
 }
 
 const smoothstep = (edge: number, x: number): number => {
@@ -113,6 +155,7 @@ export async function composeParts(
       });
     }
     let resized = await source.resize(w, h, { fit: 'fill' }).png().toBuffer();
+    if (p.tint === RAINBOW) resized = await rainbowTint(resized, w, h, p.uv);
     if (p.feather) resized = await applyFeather(resized, w, h, p.feather);
 
     let input = resized;

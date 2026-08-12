@@ -167,6 +167,15 @@ Every change is applied to the player's unicorn immediately rather than on
 confirm, so closing the wardrobe never surprises anyone. The result is saved to
 `localStorage` and comes back next visit.
 
+**Regnbåge** is the first swatch in the coat, hair and horn rows. It is not a
+colour: `RAINBOW` is a sentinel that switches the sprite shader from a flat
+multiply to a hue ramp, so it costs no art and works on any part. The ramp runs
+*down* the sprite rather than across it, so it survives the unicorn turning
+round, and it is keyed off the texture coordinate rather than the quad — which
+is what makes the ears, cut from the body, continue the body's rainbow instead
+of running a private one. A random roll only turns one up occasionally; special
+should stay special.
+
 This is what `UnicornVariant` was designed for: editing a unicorn is setting
 fields on plain data and rebuilding, with no editor-specific path through the
 renderer. New parts appear in the wardrobe automatically — generating a fifth

@@ -15,7 +15,7 @@
 import * as THREE from 'three';
 
 import type { AssetLibrary, Part, PartKind } from '../engine/assets.ts';
-import { COATS, HAIR, HORNS, NAMES, PATTERN_COLOURS, type NamedColour } from './palette.ts';
+import { COATS, HAIR, HORNS, NAMES, PATTERN_COLOURS, RAINBOW, type NamedColour } from './palette.ts';
 import { Unicorn } from './unicorn.ts';
 import { randomSeed, randomVariant, type UnicornVariant } from './variant.ts';
 
@@ -346,7 +346,11 @@ export class Wardrobe {
       const dot = document.createElement('button');
       dot.type = 'button';
       dot.className = `wardrobe-swatch${colour.hex === current ? ' selected' : ''}`;
-      dot.style.background = hex(colour.hex);
+      // The rainbow is a marker, not a colour, so its swatch is drawn as one.
+      dot.style.background =
+        colour.hex === RAINBOW
+          ? 'linear-gradient(#f4676f, #ffa94d, #ffdc5e, #6fd39a, #53bcd8, #9a7ce0)'
+          : hex(colour.hex);
       dot.title = colour.label;
       dot.setAttribute('aria-label', colour.label);
       dot.setAttribute('aria-pressed', String(colour.hex === current));

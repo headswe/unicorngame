@@ -47,6 +47,8 @@ function makeDeps(parts: Info[]): LayoutDeps & Pick<AssetLibrary, 'ofKind'> {
 
 /** Multiply tint, matching what the sprite shader does on the GPU. */
 async function tinted(file: string, hex: number, w: number, h: number): Promise<Buffer> {
+  // The rainbow marker is not a colour; composeParts paints those.
+  if (hex < 0) hex = 0xffffff;
   const r = ((hex >> 16) & 255) / 255;
   const g = ((hex >> 8) & 255) / 255;
   const b = (hex & 255) / 255;

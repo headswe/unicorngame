@@ -13,6 +13,7 @@ import * as THREE from 'three';
 import type { AssetLibrary } from '../engine/assets.ts';
 import { createSprite, type Sprite } from '../engine/sprite.ts';
 import { depthOrder, PART_ORDER, projectY } from '../engine/view.ts';
+import { RAINBOW } from './palette.ts';
 import { layoutUnicorn, type PlacedPart } from './rig.ts';
 import { shadowTexture } from './shadow.ts';
 import type { UnicornVariant } from './variant.ts';
@@ -89,7 +90,9 @@ export class Unicorn {
       pivotY: placed.pivotY,
       uv: placed.uv,
       feather: placed.feather ? new THREE.Vector4(...placed.feather) : undefined,
-      tint: placed.tint,
+      // The rainbow is a marker rather than a colour; the shader draws the ramp.
+      rainbow: placed.tint === RAINBOW,
+      tint: placed.tint === RAINBOW ? 0xffffff : placed.tint,
       patternMap: placed.pattern?.part.texture,
       patternTint: placed.pattern?.tint,
       patternAmount: placed.pattern?.amount,

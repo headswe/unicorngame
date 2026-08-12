@@ -7,7 +7,7 @@
 
 import type { AssetLibrary } from '../engine/assets.ts';
 import { makeRng, type Rng } from '../engine/rng.ts';
-import { COATS, HAIR, HORNS, NAMES, PATTERN_COLOURS } from './palette.ts';
+import { COATS, HAIR, HORNS, NAMES, PATTERN_COLOURS, RAINBOW } from './palette.ts';
 
 export interface UnicornVariant {
   seed: string;
@@ -51,10 +51,20 @@ export function randomVariant(assets: AssetLibrary, seed: string): UnicornVarian
   const bodyId = pickId(rng, idsOfKind(assets, 'body'), 'body');
   const patterns = idsOfKind(assets, 'pattern');
 
+  /**
+   * Rainbow lives in the palettes so the wardrobe offers it, but a random roll
+   * should only turn one up now and then — it stops being a treat otherwise.
+   */
+  const pickColour = (from: typeof HAIR, rainbowChance: number): number => {
+    const choice = rng.pick(from).hex;
+    if (choice !== RAINBOW || rng.chance(rainbowChance)) return choice;
+    return rng.pick(from.filter((c) => c.hex !== RAINBOW)).hex;
+  };
+
   // Manes and tails usually match, the way a real pony's would, but every so
   // often one turns up with a contrasting tail.
-  const maneColour = rng.pick(HAIR).hex;
-  const tailColour = rng.chance(0.8) ? maneColour : rng.pick(HAIR).hex;
+  const maneColour = pickColour(HAIR, 0.35);
+  const tailColour = rng.chance(0.8) ? maneColour : pickColour(HAIR, 0.35);
 
   return {
     seed,
@@ -64,10 +74,10 @@ export function randomVariant(assets: AssetLibrary, seed: string): UnicornVarian
     maneId: pickId(rng, idsOfKind(assets, 'mane'), 'mane'),
     tailId: pickId(rng, idsOfKind(assets, 'tail'), 'tail'),
     patternId: patterns.length && rng.chance(0.55) ? rng.pick(patterns) : null,
-    coat: rng.pick(COATS).hex,
+    coat: pickColour(COATS, 0.25),
     maneColour,
     tailColour,
-    hornColour: rng.pick(HORNS).hex,
+    hornColour: pickColour(HORNS, 0.4),
     patternColour: rng.pick(PATTERN_COLOURS).hex,
     patternAmount: rng.range(0.45, 0.85),
     patternScale: rng.range(2.5, 4.5),

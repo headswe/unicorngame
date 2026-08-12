@@ -44,6 +44,9 @@ const FRAGMENT = /* glsl */ `
   // Fade width at each edge of the quad, as a fraction: left, right, bottom, top.
   uniform vec4 feather;
 
+  // 1 replaces the flat tint with a hue ramp down the quad.
+  uniform float rainbow;
+
   varying vec2 vUv;
   varying vec2 vQuad;
 
@@ -51,11 +54,28 @@ const FRAGMENT = /* glsl */ `
     return width <= 0.0 ? 1.0 : smoothstep(0.0, width, distance);
   }
 
+  vec3 hsv2rgb(vec3 c) {
+    vec3 p = abs(fract(c.xxx + vec3(1.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0);
+    return c.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), c.y);
+  }
+
   void main() {
     vec4 base = texture2D(map, vUv);
     if (base.a < 0.004) discard;
 
-    vec3 col = base.rgb * tint;
+    // The ramp runs down the sprite rather than across it, so it survives the
+    // unicorn turning round — a horizontal ramp would reverse on every flip.
+    // Red at the top through to violet at the bottom, matching the poop.
+    //
+    // Keyed off the texture coordinate rather than the quad's own corners, so a
+    // patch cut from part of a sprite lands on the same colour the whole sprite
+    // would have there. Without that the ears, which are re-cut from the body,
+    // would run a private rainbow of their own and clash with the head.
+    vec3 shade = rainbow > 0.5
+      ? hsv2rgb(vec3((1.0 - vUv.y) * 0.8, 0.62, 1.0))
+      : tint;
+
+    vec3 col = base.rgb * shade;
 
     if (patternAmount > 0.0) {
       vec4 pat = texture2D(patternMap, vUv * patternRepeat + patternOffset);
@@ -98,6 +118,8 @@ export interface SpriteMaterialOptions {
   patternOffset?: THREE.Vector2;
   /** Edge fade widths as fractions of the quad: left, right, bottom, top. */
   feather?: THREE.Vector4;
+  /** Ignores `tint` and runs a rainbow down the quad instead. */
+  rainbow?: boolean;
 }
 
 export type SpriteMaterial = THREE.ShaderMaterial;
@@ -120,6 +142,7 @@ export function createSpriteMaterial(opts: SpriteMaterialOptions): SpriteMateria
       patternRepeat: { value: opts.patternRepeat ?? new THREE.Vector2(1, 1) },
       patternOffset: { value: opts.patternOffset ?? new THREE.Vector2(0, 0) },
       feather: { value: opts.feather ?? new THREE.Vector4(0, 0, 0, 0) },
+      rainbow: { value: opts.rainbow ? 1 : 0 },
       glowColor: { value: new THREE.Color(0xffffff) },
       glowAmount: { value: 0 },
     },
