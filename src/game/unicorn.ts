@@ -52,6 +52,7 @@ export class Unicorn {
   private readonly phase: number;
   private clock = 0;
   private facingBlend = 1;
+  private hopLeft = 0;
 
   constructor(
     readonly variant: UnicornVariant,
@@ -112,6 +113,11 @@ export class Unicorn {
     return { mesh, order: placed.order, sway, baseRotation: placed.rotation };
   }
 
+  /** A delighted little jump, for eating something nice. */
+  hop(): void {
+    this.hopLeft = 0.5;
+  }
+
   /** Point the unicorn along a movement vector, ignoring pure vertical moves. */
   faceMovement(dx: number): void {
     if (dx > 0.01) this.facing = 1;
@@ -129,7 +135,12 @@ export class Unicorn {
     const breathe = Math.sin(this.clock * 1.6 + this.phase) * 0.006;
 
     // Two bounces per stride, the way a trot reads.
-    const bounce = Math.abs(Math.sin(step)) * 0.05 * this.gait;
+    let bounce = Math.abs(Math.sin(step)) * 0.05 * this.gait;
+    if (this.hopLeft > 0) {
+      this.hopLeft = Math.max(0, this.hopLeft - dt);
+      // One arc up and back down over the life of the hop.
+      bounce += Math.sin((1 - this.hopLeft / 0.5) * Math.PI) * 0.22;
+    }
     this.bob.position.y = bounce + breathe;
     this.bob.rotation.z = Math.sin(step) * 0.025 * this.gait;
     // Squash on the way down, stretch at the top of the bounce.

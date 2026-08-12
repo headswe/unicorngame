@@ -308,6 +308,15 @@ export const PARTS: PartSpec[] = [
     0.35,
   ),
 
+  prop(
+    'jordgubbe',
+    'Jordgubbe',
+    'A single ripe strawberry seen from the side: a plump red heart-shaped ' +
+      'berry with tiny pale seed specks and a small green leafy crown on top. ' +
+      'Glossy and appetising.',
+    0.4,
+  ),
+
   // --- sky ------------------------------------------------------------------
   {
     id: 'moln_stort',

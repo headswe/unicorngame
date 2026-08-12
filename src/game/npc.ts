@@ -32,6 +32,13 @@ export class WanderingUnicorn {
     this.restFor = rng.range(0, 6);
   }
 
+  /** Sends this unicorn somewhere specific, interrupting whatever it was doing. */
+  goTo(x: number, y: number): void {
+    this.targetX = clamp(x, this.bounds.minX, this.bounds.maxX);
+    this.targetY = clamp(y, this.bounds.minY, this.bounds.maxY);
+    this.restFor = 0;
+  }
+
   private chooseTarget(): void {
     const angle = this.rng.range(0, Math.PI * 2);
     const distance = this.rng.range(1.5, this.roam);

@@ -122,6 +122,12 @@
         outline: 3px solid #2f6fb5;
         outline-offset: 3px;
       }
+      .hud-spell {
+        background: #ffd9f0;
+      }
+      .hud-spell:hover {
+        background: #ffc2e6;
+      }
       .hud-icon.off {
         background: #e6e0da;
         opacity: 0.75;
@@ -166,6 +172,129 @@
       }
       .hud-hint.gone {
         opacity: 0;
+      }
+      .spell {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        display: grid;
+        place-items: center;
+        background: rgba(40, 62, 54, 0.55);
+        backdrop-filter: blur(3px);
+        padding: 1rem;
+      }
+      .spell[hidden] {
+        display: none;
+      }
+      .spell-panel {
+        position: relative;
+        background: linear-gradient(#fffaf2, #f2f7ef);
+        border: 4px solid var(--ink);
+        border-radius: 1.6rem;
+        box-shadow: 0 10px 0 rgba(74, 51, 39, 0.22);
+        padding: 1.2rem clamp(1rem, 4vw, 2rem) 1.4rem;
+        max-width: min(94vw, 40rem);
+        max-height: 94vh;
+        overflow: auto;
+        text-align: center;
+      }
+      .spell-close {
+        position: absolute;
+        top: 0.6rem;
+        right: 0.6rem;
+        width: 2.6rem;
+        height: 2.6rem;
+        font: inherit;
+        font-size: 1.1rem;
+        color: var(--ink);
+        background: #ffd9e0;
+        border: 3px solid var(--ink);
+        border-radius: 50%;
+        cursor: pointer;
+      }
+      .spell-title {
+        margin: 0.2rem 0 0.9rem;
+        font-size: clamp(1.3rem, 4vw, 1.8rem);
+      }
+      .spell-picker {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.9rem;
+        justify-content: center;
+      }
+      /* `hidden` alone loses to `display: flex`, so it has to be spelled out. */
+      .spell-picker[hidden] {
+        display: none;
+      }
+      .spell-card {
+        font: inherit;
+        color: var(--ink);
+        width: min(15rem, 40vw);
+        display: grid;
+        gap: 0.3rem;
+        padding: 1rem 0.8rem;
+        background: #fff;
+        border: 3px solid var(--ink);
+        border-radius: 1.1rem;
+        cursor: pointer;
+        transition: transform 0.12s ease, background 0.12s ease;
+      }
+      .spell-card:hover {
+        background: #fff3d6;
+        transform: translateY(-2px);
+      }
+      .spell-card:active {
+        transform: translateY(2px) scale(0.98);
+      }
+      .spell-card-icon {
+        font-size: 2.6rem;
+        line-height: 1;
+      }
+      .spell-card-name {
+        font-weight: bold;
+        font-size: 1.15rem;
+      }
+      .spell-card-desc {
+        font-size: 0.85rem;
+        color: #5d6f63;
+      }
+      .spell-canvas {
+        width: min(70vw, 52vh);
+        height: min(70vw, 52vh);
+        touch-action: none;
+        border-radius: 1rem;
+        background: rgba(255, 255, 255, 0.7);
+        border: 3px dashed rgba(74, 51, 39, 0.25);
+        cursor: crosshair;
+      }
+      .spell-draw.shake {
+        animation: spell-shake 0.4s ease;
+      }
+      .spell-draw.cast .spell-canvas {
+        animation: spell-cast 0.5s ease forwards;
+      }
+      @keyframes spell-shake {
+        20% { transform: translateX(-10px); }
+        45% { transform: translateX(9px); }
+        70% { transform: translateX(-5px); }
+      }
+      @keyframes spell-cast {
+        to {
+          transform: scale(1.12);
+          opacity: 0;
+        }
+      }
+      .spell-status {
+        margin: 0.9rem 0 0;
+        min-height: 1.4rem;
+        font-weight: bold;
+        font-size: 1.05rem;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .spell-draw.shake,
+        .spell-draw.cast .spell-canvas {
+          animation: none;
+        }
       }
       #loading {
         position: fixed;

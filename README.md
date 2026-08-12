@@ -25,6 +25,7 @@ play — only to draw new parts.
 | **Ny enhörning** | Roll a brand-new unicorn (saved in the browser) |
 | Walk into the shovel | Pick it up |
 | Tap a poop nearby (or Space) | Shovel it up |
+| **✨** | Open the spellbook |
 
 Both schemes are live at once, so a laptop and a tablet behave the same.
 
@@ -161,6 +162,29 @@ Sounds are synthesised in `src/engine/sfx.ts` rather than loaded: a C major
 arpeggio for tidying up, a soft bloop for the poop, and filtered noise for
 hooves. Footsteps are tied to distance travelled, not to a clock, so they slow
 down as the unicorn eases to a halt. All of it follows the music on/off switch.
+
+## Spells
+
+The ✨ button opens the spellbook. Pick a spell, then trace its sigil with a
+finger or the mouse; a good enough trace casts it, a poor one shakes and invites
+another go. Because the spell is chosen *before* the sigil is drawn, recognition
+never has to work out which shape was intended — it only scores one stroke
+against one template, which is both simpler and far more forgiving.
+
+`src/game/sigil.ts` does the scoring with the normalisation half of the $1
+unistroke recogniser: resample both strokes to 32 evenly spaced points, centre
+and scale them, then average the distance between corresponding points. Closed
+shapes are compared at every starting offset and in both directions, so it does
+not matter where on the circle you start or which way round you go.
+
+`npx tsx scripts/sigil-check.ts` scores synthetic strokes — clean, wobbly,
+child-grade, and deliberately wrong — against every template and reports
+anything that behaved unexpectedly. Worth re-running after touching a threshold:
+a circle scores about 0.65 against the triangle, so the triangle's bar sits
+above that.
+
+Adding a spell is an entry in `src/game/spellbook.ts` plus a shape in
+`sigil.ts`; the overlay and the recogniser need no changes.
 
 ## Music
 

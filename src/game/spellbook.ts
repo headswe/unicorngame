@@ -1,0 +1,42 @@
+/**
+ * What spells exist.
+ *
+ * Each one is a name, an icon, a sigil to trace and something that happens.
+ * Adding a spell means adding an entry here and a shape in sigil.ts — the
+ * casting UI and the recogniser do not need to know anything about it.
+ */
+
+import { SIGILS, type SigilTemplate } from './sigil.ts';
+
+export interface Spell {
+  id: string;
+  /** Shown on the card in the spell picker. */
+  name: string;
+  /** One line telling a child what it does. */
+  description: string;
+  icon: string;
+  sigil: SigilTemplate;
+  /** Colour of the trail while tracing, and of the burst on success. */
+  colour: string;
+}
+
+export const SPELLS: Spell[] = [
+  {
+    id: 'jordgubbsregn',
+    name: 'Jordgubbsregn',
+    description: 'Det regnar jordgubbar! Enhörningarna kommer och äter.',
+    icon: '🍓',
+    // A strawberry is a triangle, which is also about the easiest closed shape
+    // a small hand can draw.
+    sigil: SIGILS.triangle!,
+    colour: '#ff5f7e',
+  },
+  {
+    id: 'blomstercirkel',
+    name: 'Blomstercirkel',
+    description: 'En ring av blommor slår ut runt dig.',
+    icon: '🌸',
+    sigil: SIGILS.circle!,
+    colour: '#ff9ec4',
+  },
+];

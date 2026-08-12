@@ -127,6 +127,38 @@ export class Sfx {
     this.tone(3136, { duration: 0.4, gain: 0.02, type: 'sine', delay: 0.16 });
   }
 
+  /** Opening the spellbook: a soft, curious chime. */
+  magicOpen(): void {
+    this.tone(880, { duration: 0.3, gain: 0.07, type: 'sine' });
+    this.tone(1174.7, { duration: 0.35, gain: 0.05, type: 'sine', delay: 0.09 });
+  }
+
+  /** A sigil completed: a long rising sparkle, the biggest sound in the game. */
+  cast(): void {
+    // A pentatonic run, which sounds triumphant without needing to resolve.
+    const notes = [523.3, 659.3, 784.0, 1046.5, 1318.5, 1568.0];
+    notes.forEach((frequency, i) => {
+      this.tone(frequency, { duration: 0.5, gain: 0.09, type: 'sine', delay: i * 0.06 });
+    });
+    this.tone(2093, { duration: 0.9, gain: 0.03, type: 'sine', delay: 0.36 });
+  }
+
+  /** A sigil that did not match: a gentle "not quite", never a buzzer. */
+  fizzle(): void {
+    this.tone(392, { duration: 0.22, gain: 0.08, type: 'triangle', slideTo: 294 });
+  }
+
+  /** A strawberry landing on the grass. */
+  drop(): void {
+    this.tone(520 + Math.random() * 120, { duration: 0.07, gain: 0.05, type: 'sine', slideTo: 320 });
+  }
+
+  /** A unicorn eating something nice. */
+  munch(): void {
+    this.tone(300, { duration: 0.1, gain: 0.09, type: 'triangle', slideTo: 420 });
+    this.tone(620, { duration: 0.16, gain: 0.06, type: 'sine', delay: 0.07 });
+  }
+
   /** Picking something up: a short two-note lift. */
   pickup(): void {
     this.tone(660, { duration: 0.12, gain: 0.11, type: 'triangle' });

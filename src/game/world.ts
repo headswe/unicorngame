@@ -19,6 +19,7 @@ import { WanderingUnicorn } from './npc.ts';
 import type { WorldBounds } from './player.ts';
 import { shadowTexture } from './shadow.ts';
 import { PoopField } from './poop.ts';
+import { TreatField, EAT_RADIUS } from './treats.ts';
 import { Unicorn } from './unicorn.ts';
 import { randomVariant } from './variant.ts';
 
@@ -47,6 +48,9 @@ export const SHOVEL_SPOT = { x: 4.2, y: 9.5 };
 
 /** Seconds between one unicorn's presents. Long enough to stay a treat. */
 const POOP_INTERVAL = { min: 14, max: 38 };
+
+/** How far a unicorn will notice a strawberry and come over for it. */
+const TREAT_SMELL = 9;
 
 interface ScatterSpec {
   id: string;
@@ -79,9 +83,14 @@ export class World {
   readonly player: Unicorn;
   readonly residents: WanderingUnicorn[] = [];
   readonly poop: PoopField;
+  readonly treats: TreatField;
+  /** Flowers conjured by a spell, kept so they can be animated in. */
+  private readonly blooms: Array<{ sprite: Sprite; age: number }> = [];
 
   /** Called when a unicorn leaves a present, so the game can make a noise. */
   onPoop: (() => void) | null = null;
+  /** Called when any unicorn eats a strawberry. */
+  onEat: (() => void) | null = null;
 
   private readonly decor: THREE.Group = new THREE.Group();
   private readonly poopTimers: number[] = [];
@@ -108,6 +117,8 @@ export class World {
 
     this.poop = new PoopField(assets);
     this.scene.add(this.poop.group);
+    this.treats = new TreatField(assets);
+    this.scene.add(this.treats.group);
     this.placeShovel();
 
     this.player = playerUnicorn;
@@ -199,6 +210,36 @@ export class World {
     }
   }
 
+  /** Casts strawberry rain around a point. */
+  rainStrawberries(x: number, y: number, rng: Rng): void {
+    this.treats.rain(x, y, 14, 5.5, rng);
+  }
+
+  /** Blooms a ring of flowers around a point, each popping up in turn. */
+  bloomFlowers(x: number, y: number, rng: Rng): void {
+    const kinds = ['blommor_rosa', 'blommor_vita'].filter((id) => this.assets.has(id));
+    if (!kinds.length) return;
+
+    const count = 14;
+    for (let i = 0; i < count; i++) {
+      const angle = (i / count) * Math.PI * 2;
+      const radius = rng.range(2.2, 3.1);
+      const fx = x + Math.cos(angle) * radius;
+      // The depth axis is squashed on screen, so the ring is squashed to match
+      // and comes out looking round.
+      const fy = y + Math.sin(angle) * radius * 0.75;
+
+      const part = this.assets.get(rng.pick(kinds));
+      const sprite = createSprite(part, { height: rng.range(0.4, 0.62) });
+      sprite.position.set(fx, projectY(fy), 0);
+      sprite.renderOrder = depthOrder(fy) + PART_ORDER.body;
+      sprite.scale.setScalar(0);
+      this.decor.add(sprite);
+      // Staggered so the ring opens outward rather than all at once.
+      this.blooms.push({ sprite, age: -i * 0.045 });
+    }
+  }
+
   /** Lays the shovel on the grass for the player to find. */
   private placeShovel(): void {
     if (!this.assets.has('spade')) return;
@@ -251,6 +292,42 @@ export class World {
     }
 
     this.poop.update(dt);
+    this.treats.update(dt);
+    this.feedResidents();
+    this.growBlooms(dt);
+  }
+
+  /** Unicorns notice strawberries nearby, walk over, and eat them. */
+  private feedResidents(): void {
+    if (!this.treats.count) return;
+
+    for (const resident of this.residents) {
+      const unicorn = resident.unicorn;
+      const treat = this.treats.nearest(unicorn.x, unicorn.y, TREAT_SMELL);
+      if (!treat) continue;
+
+      if (Math.hypot(treat.x - unicorn.x, treat.y - unicorn.y) <= EAT_RADIUS) {
+        if (this.treats.eat(treat)) {
+          unicorn.hop();
+          this.onEat?.();
+        }
+      } else {
+        resident.goTo(treat.x, treat.y);
+      }
+    }
+  }
+
+  private growBlooms(dt: number): void {
+    for (let i = this.blooms.length - 1; i >= 0; i--) {
+      const bloom = this.blooms[i]!;
+      bloom.age += dt;
+      if (bloom.age <= 0) continue;
+
+      const t = Math.min(1, bloom.age / 0.45);
+      // Overshoot then settle, so each flower springs up.
+      bloom.sprite.scale.setScalar(t < 1 ? t * (1 + Math.sin(t * Math.PI) * 0.35) : 1);
+      if (t >= 1) this.blooms.splice(i, 1);
+    }
   }
 }
 

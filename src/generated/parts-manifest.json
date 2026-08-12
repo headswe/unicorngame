@@ -341,6 +341,17 @@
     "tintable": false
   },
   {
+    "id": "jordgubbe",
+    "kind": "prop",
+    "label": "Jordgubbe",
+    "url": "assets/parts/jordgubbe.png",
+    "width": 396,
+    "height": 512,
+    "aspect": 0.7734375,
+    "worldHeight": 0.4,
+    "tintable": false
+  },
+  {
     "id": "moln_stort",
     "kind": "cloud",
     "label": "Moln",

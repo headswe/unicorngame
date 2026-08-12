@@ -12,9 +12,12 @@ import { Music } from './engine/music.ts';
 import { Sfx } from './engine/sfx.ts';
 import { MeadowCamera, projectY, type ViewportSize } from './engine/view.ts';
 import { Hud } from './game/hud.ts';
+import { SpellUi } from './game/spell-ui.ts';
 import { PlayerController, clamp } from './game/player.ts';
 import { Unicorn } from './game/unicorn.ts';
+import { makeRng } from './engine/rng.ts';
 import { loadVariant, randomSeed, randomVariant, saveVariant } from './game/variant.ts';
+import { EAT_RADIUS } from './game/treats.ts';
 import { World, WORLD_BOUNDS, SHOVEL_SPOT } from './game/world.ts';
 
 /** How much sky is allowed above the far edge of the meadow. */
@@ -80,8 +83,11 @@ async function start(): Promise<void> {
   // Effects follow the same on/off switch as the music.
   const sfx = new Sfx(() => music.enabled);
 
+  let openSpellbook = (): void => undefined;
+
   const hud = new Hud(container, {
     onToggleMusic: () => music.toggle(),
+    onCastSpell: () => openSpellbook(),
     onReroll: () => {
       const next = randomVariant(assets, randomSeed());
       saveVariant(next);
@@ -108,6 +114,29 @@ async function start(): Promise<void> {
   void music.start();
 
   world.onPoop = () => sfx.plop();
+  world.onEat = () => sfx.munch();
+  world.treats.onLand = () => sfx.drop();
+
+  // --- spellcasting ---------------------------------------------------------
+  const spellRng = makeRng(randomSeed());
+
+  const spellUi = new SpellUi(container, {
+    onOpen: () => controller.stop(),
+    onClose: () => undefined,
+    onSound: (kind) => {
+      if (kind === 'open') sfx.magicOpen();
+      else if (kind === 'success') sfx.cast();
+      else sfx.fizzle();
+    },
+    onCast: (spell) => {
+      if (spell.id === 'jordgubbsregn') {
+        world.rainStrawberries(player.x, player.y, spellRng);
+      } else if (spell.id === 'blomstercirkel') {
+        world.bloomFlowers(player.x, player.y, spellRng);
+      }
+    },
+  });
+  openSpellbook = () => spellUi.show();
 
   // The player's own unicorn is a pony like any other. Rarer, so it reads as a
   // surprise rather than a nuisance while you are trying to tidy up.
@@ -135,6 +164,13 @@ async function start(): Promise<void> {
   };
 
   const caretaking = (dt: number): void => {
+    // The player's unicorn grazes on strawberries by walking over them.
+    const treat = world.treats.nearest(player.x, player.y, EAT_RADIUS);
+    if (treat && world.treats.eat(treat)) {
+      player.hop();
+      sfx.munch();
+    }
+
     playerPoopIn -= dt;
     if (playerPoopIn <= 0) {
       playerPoopIn = 30 + Math.random() * 40;
@@ -230,8 +266,15 @@ async function start(): Promise<void> {
     last = now;
 
     input.beginFrame();
-    caretaking(dt);
-    controller.update(dt, input, camera, viewport);
+
+    if (spellUi.open) {
+      // The overlay swallows pointers, but not the keyboard, so the unicorn is
+      // held still explicitly while a sigil is being drawn.
+      player.update(dt, false);
+    } else {
+      caretaking(dt);
+      controller.update(dt, input, camera, viewport);
+    }
     world.update(dt);
     followPlayer(dt, false);
     world.backdrop.update(dt, camera.camera, camera.extents(viewport));
