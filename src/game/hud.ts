@@ -7,7 +7,8 @@
  */
 
 export interface HudCallbacks {
-  onReroll(): void;
+  /** Opens the wardrobe to dress the player's unicorn. */
+  onOpenWardrobe(): void;
   /** Opens the spellcasting overlay. */
   onCastSpell(): void;
   /** Returns the new state: true when music is now playing. */
@@ -34,8 +35,8 @@ export class Hud {
       <div class="hud-card">
         <span class="hud-name"></span>
         <span class="hud-tally" hidden><span class="hud-tally-icon" aria-hidden="true">💩</span><span class="hud-tally-count">0</span></span>
-        <button type="button" class="hud-button" aria-label="Skapa en ny enhörning">
-          <span aria-hidden="true">🎲</span> Ny enhörning
+        <button type="button" class="hud-button" aria-label="Ändra din enhörning">
+          <span aria-hidden="true">👗</span> Min enhörning
         </button>
         <button type="button" class="hud-icon hud-spell" aria-label="Trolla">
           <span aria-hidden="true">✨</span>
@@ -87,8 +88,8 @@ export class Hud {
 
     button.addEventListener('click', (event) => {
       event.preventDefault();
-      callbacks.onReroll();
-      // Otherwise the next arrow key press re-rolls instead of walking.
+      callbacks.onOpenWardrobe();
+      // Otherwise the next arrow key press hits the button instead of walking.
       button.blur();
     });
     // The canvas is listening for pointerdown everywhere; keep taps on the HUD

@@ -13,10 +13,17 @@ import { Sfx } from './engine/sfx.ts';
 import { MeadowCamera, projectY, type ViewportSize } from './engine/view.ts';
 import { Hud } from './game/hud.ts';
 import { SpellUi } from './game/spell-ui.ts';
+import { Wardrobe } from './game/wardrobe.ts';
 import { PlayerController, clamp } from './game/player.ts';
 import { Unicorn } from './game/unicorn.ts';
 import { makeRng } from './engine/rng.ts';
-import { loadVariant, randomSeed, randomVariant, saveVariant } from './game/variant.ts';
+import {
+  loadVariant,
+  randomSeed,
+  randomVariant,
+  saveVariant,
+  type UnicornVariant,
+} from './game/variant.ts';
 import { EAT_RADIUS } from './game/treats.ts';
 import { World, WORLD_BOUNDS, SHOVEL_SPOT } from './game/world.ts';
 
@@ -83,31 +90,56 @@ async function start(): Promise<void> {
   // Effects follow the same on/off switch as the music.
   const sfx = new Sfx(() => music.enabled);
 
+  /** Rebuilds the player's unicorn in place, keeping where it was standing. */
+  const wearVariant = (next: UnicornVariant): void => {
+    const replacement = new Unicorn(next, assets);
+    replacement.x = player.x;
+    replacement.y = player.y;
+    replacement.facing = player.facing;
+
+    player.dispose();
+    world.scene.add(replacement.group);
+    player = replacement;
+    controller = new PlayerController(player, WORLD_BOUNDS);
+    controller.onStep = () => sfx.step();
+    player.update(0, false);
+    hud.setName(next.name);
+  };
+
   let openSpellbook = (): void => undefined;
+  let openWardrobe = (): void => undefined;
 
   const hud = new Hud(container, {
     onToggleMusic: () => music.toggle(),
     onCastSpell: () => openSpellbook(),
-    onReroll: () => {
-      const next = randomVariant(assets, randomSeed());
-      saveVariant(next);
-
-      const replacement = new Unicorn(next, assets);
-      // Step straight into the old unicorn's hoofprints.
-      replacement.x = player.x;
-      replacement.y = player.y;
-      replacement.facing = player.facing;
-
-      player.dispose();
-      world.scene.add(replacement.group);
-      player = replacement;
-      controller = new PlayerController(player, WORLD_BOUNDS);
-      controller.onStep = () => sfx.step();
-      player.update(0, false);
-      hud.setName(next.name);
-    },
+    onOpenWardrobe: () => openWardrobe(),
   }, { hasMusic: music.available, musicOn: music.enabled });
   hud.setName(variant.name);
+
+  // --- wardrobe -------------------------------------------------------------
+  let worn = variant;
+
+  const wardrobe = new Wardrobe(container, assets, variant, {
+    // Every change is applied to the real unicorn straight away, so the preview
+    // and the meadow can never disagree about what it looks like.
+    onChange: (next) => {
+      worn = next;
+      wearVariant(next);
+    },
+    onClose: (next) => {
+      worn = next;
+      saveVariant(next);
+    },
+    onSound: (kind) => {
+      if (kind === 'swap') sfx.pickup();
+      else if (kind === 'done') sfx.sparkle();
+      else sfx.magicOpen();
+    },
+  });
+  openWardrobe = () => {
+    controller.stop();
+    wardrobe.show(worn);
+  };
 
   // Browsers will not allow this before the player touches something; Music
   // handles the retry itself.
@@ -271,7 +303,9 @@ async function start(): Promise<void> {
 
     input.beginFrame();
 
-    if (spellUi.open) {
+    wardrobe.tick();
+
+    if (spellUi.open || wardrobe.open) {
       // The overlay swallows pointers, but not the keyboard, so the unicorn is
       // held still explicitly while a sigil is being drawn.
       player.update(dt, false);

@@ -22,7 +22,7 @@ play — only to draw new parts.
 |---|---|
 | Arrow keys / WASD | Walk |
 | Tap or drag anywhere | Walk to that spot |
-| **Ny enhörning** | Roll a brand-new unicorn (saved in the browser) |
+| **Min enhörning** | Open the wardrobe and dress your unicorn |
 | Walk into the shovel | Pick it up |
 | Tap a poop nearby (or Space) | Shovel it up |
 | **✨** | Open the spellbook |
@@ -149,6 +149,28 @@ angen.world.residents.length   // how many unicorns live here
 ```
 
 `node scripts/tour.mjs` walks the meadow and writes `.cache/tour-*.png`.
+
+## The wardrobe
+
+**Min enhörning** opens a dressing room: one tab per part, each offering that
+part's shapes *and* its colours, because "pick a mane, pick its colour" is one
+thought to a child rather than two. Options are pictures of the actual sprites,
+so nothing depends on being able to read. There is a name field, a dice for
+rolling a whole unicorn at once, and patterns can be switched off with **Inget**.
+
+The preview is a real `Unicorn`, built by the same code that puts them in the
+meadow, breathing on its own little stage — so it cannot show something the game
+would draw differently. It gets its own WebGL context because the overlay covers
+the meadow's canvas; textures are shared and three re-uploads them per context.
+
+Every change is applied to the player's unicorn immediately rather than on
+confirm, so closing the wardrobe never surprises anyone. The result is saved to
+`localStorage` and comes back next visit.
+
+This is what `UnicornVariant` was designed for: editing a unicorn is setting
+fields on plain data and rebuilding, with no editor-specific path through the
+renderer. New parts appear in the wardrobe automatically — generating a fifth
+mane puts a fifth card on the shelf with no UI changes at all.
 
 ## Caretaking
 

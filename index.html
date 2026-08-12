@@ -296,6 +296,188 @@
           animation: none;
         }
       }
+      .wardrobe {
+        position: fixed;
+        inset: 0;
+        z-index: 25;
+        display: grid;
+        place-items: center;
+        background: rgba(40, 62, 54, 0.55);
+        backdrop-filter: blur(3px);
+        padding: 0.6rem;
+      }
+      .wardrobe[hidden] {
+        display: none;
+      }
+      .wardrobe-panel {
+        display: flex;
+        gap: 1rem;
+        align-items: stretch;
+        background: linear-gradient(#fffaf2, #f2f7ef);
+        border: 4px solid var(--ink);
+        border-radius: 1.6rem;
+        box-shadow: 0 10px 0 rgba(74, 51, 39, 0.22);
+        padding: 1rem;
+        max-width: min(96vw, 56rem);
+        max-height: 96vh;
+      }
+      .wardrobe-stage {
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+        align-items: center;
+        flex: 0 0 auto;
+      }
+      .wardrobe-canvas {
+        width: clamp(9rem, 26vw, 15rem);
+        height: clamp(10rem, 30vw, 17rem);
+        background: radial-gradient(circle at 50% 62%, #dff0e4, #bfe3f2);
+        border: 3px solid var(--ink);
+        border-radius: 1.1rem;
+      }
+      .wardrobe-namerow {
+        display: flex;
+        gap: 0.4rem;
+        align-items: center;
+      }
+      .wardrobe-name {
+        font: inherit;
+        font-weight: bold;
+        font-size: 1rem;
+        color: var(--ink);
+        width: 7.5rem;
+        text-align: center;
+        padding: 0.45rem 0.5rem;
+        border: 3px solid var(--ink);
+        border-radius: 999px;
+        background: #fff;
+      }
+      .wardrobe-dice {
+        font-size: 1.2rem;
+        width: 2.7rem;
+        height: 2.7rem;
+        border: 3px solid var(--ink);
+        border-radius: 50%;
+        background: #ffe07a;
+        cursor: pointer;
+      }
+      .wardrobe-done {
+        font: inherit;
+        font-weight: bold;
+        font-size: 1.15rem;
+        color: var(--ink);
+        width: 100%;
+        padding: 0.6rem 1rem;
+        border: 3px solid var(--ink);
+        border-radius: 999px;
+        background: #8fe0c0;
+        cursor: pointer;
+      }
+      .wardrobe-done:active,
+      .wardrobe-dice:active {
+        transform: translateY(2px) scale(0.98);
+      }
+      .wardrobe-picker {
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+        min-width: 0;
+        flex: 1 1 auto;
+      }
+      .wardrobe-tabs {
+        display: flex;
+        gap: 0.4rem;
+        flex-wrap: wrap;
+      }
+      .wardrobe-tab {
+        font: inherit;
+        font-size: 0.85rem;
+        font-weight: bold;
+        color: var(--ink);
+        display: grid;
+        justify-items: center;
+        gap: 0.1rem;
+        padding: 0.4rem 0.7rem;
+        border: 3px solid var(--ink);
+        border-radius: 0.9rem;
+        background: #fff;
+        cursor: pointer;
+      }
+      .wardrobe-tab span:first-child {
+        font-size: 1.2rem;
+        line-height: 1;
+      }
+      .wardrobe-tab.active {
+        background: #ffe07a;
+      }
+      .wardrobe-options {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(5.2rem, 1fr));
+        gap: 0.5rem;
+        overflow-y: auto;
+        padding: 0.2rem;
+        min-height: 6rem;
+        max-height: min(38vh, 16rem);
+      }
+      .wardrobe-option {
+        font: inherit;
+        font-size: 0.75rem;
+        font-weight: bold;
+        color: var(--ink);
+        display: grid;
+        justify-items: center;
+        gap: 0.2rem;
+        padding: 0.4rem 0.2rem;
+        background: #fff;
+        border: 3px solid rgba(74, 51, 39, 0.25);
+        border-radius: 0.8rem;
+        cursor: pointer;
+      }
+      .wardrobe-option img {
+        width: 3.2rem;
+        height: 3.2rem;
+        object-fit: contain;
+      }
+      .wardrobe-none {
+        font-size: 2rem;
+        line-height: 3.2rem;
+        height: 3.2rem;
+        color: rgba(74, 51, 39, 0.4);
+      }
+      .wardrobe-option.selected {
+        border-color: var(--ink);
+        background: #fff3d6;
+      }
+      .wardrobe-swatches {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+        justify-content: center;
+      }
+      .wardrobe-swatch {
+        width: 2.2rem;
+        height: 2.2rem;
+        border: 3px solid rgba(74, 51, 39, 0.3);
+        border-radius: 50%;
+        cursor: pointer;
+        padding: 0;
+      }
+      .wardrobe-swatch.selected {
+        border-color: var(--ink);
+        transform: scale(1.14);
+      }
+      /* Narrow screens stack the stage above the shelves. */
+      @media (max-width: 40rem), (orientation: portrait) {
+        .wardrobe-panel {
+          flex-direction: column;
+          gap: 0.6rem;
+          overflow-y: auto;
+        }
+        .wardrobe-canvas {
+          width: 60vw;
+          height: 34vh;
+        }
+      }
       #loading {
         position: fixed;
         inset: 0;
