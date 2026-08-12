@@ -18,6 +18,8 @@ export interface Spell {
   sigil: SigilTemplate;
   /** Colour of the trail while tracing, and of the burst on success. */
   colour: string;
+  /** Which signature sound plays when it lands. */
+  sound: 'rain' | 'bloom';
 }
 
 export const SPELLS: Spell[] = [
@@ -30,6 +32,7 @@ export const SPELLS: Spell[] = [
     // a small hand can draw.
     sigil: SIGILS.triangle!,
     colour: '#ff5f7e',
+    sound: 'rain',
   },
   {
     id: 'blomstercirkel',
@@ -38,5 +41,6 @@ export const SPELLS: Spell[] = [
     icon: '🌸',
     sigil: SIGILS.circle!,
     colour: '#ff9ec4',
+    sound: 'bloom',
   },
 ];

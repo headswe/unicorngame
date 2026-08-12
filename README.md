@@ -158,10 +158,21 @@ clear it — a tap aimed at a poop is swallowed so it does not also order a walk
 and a distant poop just walks you over instead of being cleaned from across the
 meadow. Space does the same thing for keyboard players.
 
-Sounds are synthesised in `src/engine/sfx.ts` rather than loaded: a C major
-arpeggio for tidying up, a soft bloop for the poop, and filtered noise for
-hooves. Footsteps are tied to distance travelled, not to a clock, so they slow
-down as the unicorn eases to a halt. All of it follows the music on/off switch.
+Sounds are synthesised in `src/engine/sfx.ts` rather than loaded: nothing to
+download, and each one is a number to tune instead of a file to re-export. The
+reward sounds are plain major and pentatonic runs, which are hard to make
+unpleasant, and nothing is ever a buzzer. Magical sounds go through a reverb
+send — the impulse response is generated too — which is most of what separates
+"a beep" from "a spell". Footsteps are tied to distance travelled rather than a
+clock, so they slow as the unicorn eases to a halt. All of it follows the music
+on/off switch.
+
+`node scripts/render-sfx.mjs` renders every sound to `.cache/sfx/*.wav` plus an
+`all.wav` montage, by running the real `Sfx` class against an
+`OfflineAudioContext` in a headless browser — so the files are exactly what the
+game plays, not a reimplementation that can drift. It prints each sound's peak
+and flags anything silent or clipping, which is how the levels were set against
+the music at 0.18. Needs the dev server up.
 
 ## Spells
 

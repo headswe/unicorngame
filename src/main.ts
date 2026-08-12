@@ -129,6 +129,10 @@ async function start(): Promise<void> {
       else sfx.fizzle();
     },
     onCast: (spell) => {
+      // The cast chord has already played; this is the spell's own voice.
+      if (spell.sound === 'rain') sfx.rainSpell();
+      else sfx.bloomSpell();
+
       if (spell.id === 'jordgubbsregn') {
         world.rainStrawberries(player.x, player.y, spellRng);
       } else if (spell.id === 'blomstercirkel') {
