@@ -1,19 +1,16 @@
 /**
  * What the meadow says over the wire.
  *
- * The guiding decision here is how *little* is sent. The field itself is
- * generated from the seed `angen-1` rather than stored, so every browser
- * already builds the identical meadow — the same trees, the same eighteen
- * residents, the same colours — without a byte crossing the network. That
- * leaves only two things worth sending: where each child's own unicorn is, and
- * the spells they cast.
+ * The guiding decision here is how *little* is sent. The field is generated
+ * from the day's date rather than stored, so every browser already builds the
+ * identical meadow — the same trees, the same eighteen residents, the same
+ * colours — without a byte crossing the network. The herd's wandering, the
+ * presents it leaves and which pony goes for which strawberry are all functions
+ * of the clock too, so none of those are sent either.
  *
- * Deliberately *not* synchronised: the wandering residents, the poop they leave
- * and the grass they eat. Those run locally on each machine and are allowed to
- * drift apart. Keeping them in lockstep would mean a fixed timestep and
- * eighteen more moving things on the wire, to fix a difference no child will
- * ever notice — the cousin's meadow having a poop in a slightly different place
- * is not a bug anyone will report.
+ * What is left is only what the clock cannot predict: where each child has
+ * chosen to walk, what they cast, and what they picked up or ate. Everything in
+ * this file is one of those.
  */
 
 import type { UnicornVariant } from '../game/variant.ts';
@@ -86,6 +83,12 @@ export interface SpellMessage {
   y: number;
   seed: string;
   variant?: UnicornVariant;
+  /**
+   * Unix seconds when it was cast. Strawberries fall on this clock rather than
+   * on each browser's frame timing, so they touch down at the same moment
+   * everywhere — which is what stops two herds picking different berries.
+   */
+  at: number;
 }
 
 /**
@@ -99,6 +102,19 @@ export interface PoopMessage {
   poop: string;
   x: number;
   y: number;
+}
+
+/**
+ * A player's own unicorn ate a strawberry.
+ *
+ * The residents' feeding needs no messages — they decide from positions that
+ * are functions of the clock, so both browsers send the same ponies to the same
+ * berries. Where a *child* walks is the one thing that cannot be predicted.
+ */
+export interface EatenMessage {
+  t: 'eaten';
+  id: string;
+  berry: string;
 }
 
 /** Somebody shovelled one. Named, so both screens remove the same poop. */
@@ -157,6 +173,7 @@ export type NetMessage =
   | SpellMessage
   | PoopMessage
   | CleanMessage
+  | EatenMessage
   | HatchedMessage
   | StateMessage
   | ByeMessage;

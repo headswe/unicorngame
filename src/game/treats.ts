@@ -19,17 +19,49 @@ const BOUNCE = 0.34;
 /** Below this the berry has settled and stops bouncing. */
 const REST_SPEED = 1.2;
 
+/**
+ * A berry's fall, worked out rather than integrated.
+ *
+ * Two browsers stepping their own frame times land a berry a few frames apart,
+ * and a few frames is enough to make one herd pick a different strawberry from
+ * the other. Solving the drop instead means every screen agrees on exactly when
+ * it touches down.
+ */
+function bounceOf(height: number): { drop: number; rebound: number } {
+  const drop = Math.sqrt((2 * height) / GRAVITY);
+  const rebound = GRAVITY * drop * BOUNCE;
+  return { drop, rebound };
+}
+
+/** Seconds from being conjured to coming to rest. */
+function fallTime(height: number): number {
+  const { drop, rebound } = bounceOf(height);
+  return rebound < REST_SPEED ? drop : drop + (2 * rebound) / GRAVITY;
+}
+
+/** Height above the grass `elapsed` seconds after being conjured. */
+function heightAt(height: number, elapsed: number): number {
+  const { drop, rebound } = bounceOf(height);
+  if (elapsed < drop) return Math.max(0, height - 0.5 * GRAVITY * elapsed ** 2);
+  const since = elapsed - drop;
+  return Math.max(0, rebound * since - 0.5 * GRAVITY * since ** 2);
+}
+
 /** How close a unicorn's nose has to get. */
 export const EAT_RADIUS = 0.75;
 
 const EATEN_TIME = 0.35;
 
 export interface Treat {
+  /** `<spell seed>:<n>`, so both browsers name the same berry the same way. */
+  id: string;
   x: number;
   y: number;
   /** Height above the grass. Zero once landed. */
   lift: number;
-  velocity: number;
+  /** Unix seconds this berry was conjured, and when it comes to rest. */
+  bornAt: number;
+  landsAt: number;
   landed: boolean;
   eaten: number | null;
   group: THREE.Group;
@@ -51,7 +83,17 @@ export class TreatField {
   }
 
   /** Drops a scatter of berries around a point. */
-  rain(centreX: number, centreY: number, count: number, radius: number, rng: Rng): void {
+  rain(
+    centreX: number,
+    centreY: number,
+    count: number,
+    radius: number,
+    rng: Rng,
+    /** Names the berries. The spell's seed, so both screens agree. */
+    tag: string,
+    /** Unix seconds the spell was cast, shared by everyone who replays it. */
+    at: number,
+  ): void {
     if (!this.assets.has('jordgubbe')) return;
     const part = this.assets.get('jordgubbe');
 
@@ -77,12 +119,16 @@ export class TreatField {
       group.add(sprite);
       this.group.add(group);
 
+      // Staggered starting heights, so they do not all land on the same beat.
+      const height = 9 + rng.range(0, 7) + i * 0.35;
+
       this.treats.push({
+        id: `${tag}:${i}`,
         x,
         y,
-        // Staggered starting heights, so they do not all land on the same beat.
-        lift: 9 + rng.range(0, 7) + i * 0.35,
-        velocity: 0,
+        lift: height,
+        bornAt: at,
+        landsAt: at + fallTime(height),
         landed: false,
         eaten: null,
         group,
@@ -92,12 +138,21 @@ export class TreatField {
     }
   }
 
-  /** The nearest landed, uneaten berry within `radius`. */
+  /**
+   * The nearest uneaten berry within `radius`, whether or not it has landed.
+   *
+   * Deliberately not limited to landed ones. A berry's fall is integrated frame
+   * by frame, so two browsers disagree by a few frames about when it touches
+   * down — and if that decided which berries a pony can see, the two would pick
+   * different ones and the herds would part company for the whole shower. A
+   * berry's *position* is known the moment it is conjured, so ponies walk to
+   * where it is going to land and wait for it. Which also looks better.
+   */
   nearest(x: number, y: number, radius: number): Treat | null {
     let best: Treat | null = null;
     let bestDistance = radius;
     for (const treat of this.treats) {
-      if (treat.eaten !== null || !treat.landed) continue;
+      if (treat.eaten !== null) continue;
       const distance = Math.hypot(treat.x - x, treat.y - y);
       if (distance < bestDistance) {
         best = treat;
@@ -107,6 +162,12 @@ export class TreatField {
     return best;
   }
 
+  /** Eats a named berry, wherever it is. Used when a friend eats one. */
+  eatById(id: string): boolean {
+    const treat = this.treats.find((t) => t.id === id);
+    return treat ? this.eat(treat) : false;
+  }
+
   /** Returns false if something else got there first. */
   eat(treat: Treat): boolean {
     if (treat.eaten !== null) return false;
@@ -114,7 +175,7 @@ export class TreatField {
     return true;
   }
 
-  update(dt: number): void {
+  update(dt: number, now: number): void {
     for (let i = this.treats.length - 1; i >= 0; i--) {
       const treat = this.treats[i]!;
 
@@ -134,18 +195,13 @@ export class TreatField {
       }
 
       if (!treat.landed) {
-        treat.velocity -= GRAVITY * dt;
-        treat.lift += treat.velocity * dt;
+        const elapsed = now - treat.bornAt;
+        treat.lift = heightAt(treat.lift, elapsed);
 
-        if (treat.lift <= 0) {
+        if (now >= treat.landsAt) {
           treat.lift = 0;
-          if (Math.abs(treat.velocity) < REST_SPEED) {
-            treat.landed = true;
-            this.onLand?.();
-          } else {
-            treat.velocity = -treat.velocity * BOUNCE;
-            this.onLand?.();
-          }
+          treat.landed = true;
+          this.onLand?.();
         }
         // The shadow stays on the grass and tightens as the berry drops, which
         // is what tells you where it is going to land.

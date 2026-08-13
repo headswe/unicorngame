@@ -17,8 +17,11 @@
  * it we are. Same answer on every machine, in constant time, whether you joined
  * at nine or at half past — and no positions on the wire at all.
  *
- * Chasing a strawberry is the one exception: a local detour off the shared path
- * that eases back onto it afterwards.
+ * Chasing a strawberry is a detour off that path, and it is built the same way:
+ * a walk from where the pony was to where the berry is, over a duration fixed
+ * when the chase begins. Not integrated frame by frame — that was measured
+ * pulling a third of the herd up to thirteen world units apart between two
+ * browsers, which is most of a screen.
  */
 
 import { hash01 } from '../engine/rng.ts';
@@ -46,11 +49,21 @@ function ease(t: number): number {
   return t * t * (3 - 2 * t);
 }
 
+interface Detour {
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  /** Wall-clock seconds, snapped to the decision grid. */
+  start: number;
+  duration: number;
+}
+
 export class WanderingUnicorn {
-  /** Set while chasing something; the shared path resumes once it clears. */
-  private chasing: { x: number; y: number } | null = null;
-  /** Counts down while easing back onto the shared path after a chase. */
-  private rejoining = 0;
+  /** Set while walking to something; the shared path resumes once it clears. */
+  private chase: Detour | null = null;
+  /** Set while easing back onto the shared path after a chase. */
+  private rejoin: { fromX: number; fromY: number; start: number } | null = null;
 
   private lastX: number;
   private lastY: number;
@@ -110,50 +123,80 @@ export class WanderingUnicorn {
     return { x: from.x + (to.x - from.x) * k, y: from.y + (to.y - from.y) * k };
   }
 
+  /**
+   * Where this resident actually is: on its shared path, off chasing something,
+   * or easing back onto the path afterwards. All three are functions of the
+   * clock, so two browsers asking at the same moment get the same answer.
+   */
+  placeAt(now: number): { x: number; y: number } {
+    const shared = this.positionAt(now);
+
+    if (this.chase) {
+      const t = Math.min(1, (now - this.chase.start) / this.chase.duration);
+      const k = ease(t);
+      return {
+        x: this.chase.fromX + (this.chase.toX - this.chase.fromX) * k,
+        y: this.chase.fromY + (this.chase.toY - this.chase.fromY) * k,
+      };
+    }
+
+    if (this.rejoin) {
+      const t = (now - this.rejoin.start) / REJOIN_TIME;
+      if (t >= 1) {
+        this.rejoin = null;
+        return shared;
+      }
+      const k = ease(Math.max(0, t));
+      return {
+        x: this.rejoin.fromX + (shared.x - this.rejoin.fromX) * k,
+        y: this.rejoin.fromY + (shared.y - this.rejoin.fromY) * k,
+      };
+    }
+
+    return shared;
+  }
+
+  /** What this resident is currently walking to, if anything. For diagnosis. */
+  get target(): { x: number; y: number } | null {
+    return this.chase ? { x: this.chase.toX, y: this.chase.toY } : null;
+  }
+
   /** Sends this unicorn after something, interrupting its ramble. */
-  goTo(x: number, y: number): void {
-    this.chasing = {
-      x: clamp(x, this.bounds.minX, this.bounds.maxX),
-      y: clamp(y, this.bounds.minY, this.bounds.maxY),
+  goTo(x: number, y: number, now: number): void {
+    const toX = clamp(x, this.bounds.minX, this.bounds.maxX);
+    const toY = clamp(y, this.bounds.minY, this.bounds.maxY);
+    // Already walking to this very spot: leave the walk alone rather than
+    // restarting it from here every frame.
+    if (this.chase && Math.hypot(this.chase.toX - toX, this.chase.toY - toY) < 0.05) return;
+
+    const at = this.placeAt(now);
+    const distance = Math.hypot(toX - at.x, toY - at.y);
+    this.chase = {
+      fromX: at.x,
+      fromY: at.y,
+      toX,
+      toY,
+      start: now,
+      duration: Math.max(0.2, distance / CHASE_SPEED),
     };
+    this.rejoin = null;
   }
 
   /** Gives up a chase and drifts back onto the shared path. */
-  stopChasing(): void {
-    if (!this.chasing) return;
-    this.chasing = null;
-    this.rejoining = REJOIN_TIME;
+  stopChasing(now: number): void {
+    if (!this.chase) return;
+    const at = this.placeAt(now);
+    this.chase = null;
+    this.rejoin = { fromX: at.x, fromY: at.y, start: now };
   }
 
   update(dt: number, now: number): void {
-    const shared = this.positionAt(now);
-
-    if (this.chasing) {
-      const dx = this.chasing.x - this.unicorn.x;
-      const dy = this.chasing.y - this.unicorn.y;
-      const distance = Math.hypot(dx, dy);
-
-      if (distance < 0.25) {
-        this.stopChasing();
-      } else {
-        const step = Math.min(distance, CHASE_SPEED * dt);
-        this.unicorn.x += (dx / distance) * step;
-        this.unicorn.y += (dy / distance) * step;
-      }
-    } else if (this.rejoining > 0) {
-      // Slide back onto the shared path rather than snapping, so a pony that
-      // wandered off for a strawberry does not teleport home.
-      this.rejoining = Math.max(0, this.rejoining - dt);
-      const blend = 1 - this.rejoining / REJOIN_TIME;
-      this.unicorn.x += (shared.x - this.unicorn.x) * blend;
-      this.unicorn.y += (shared.y - this.unicorn.y) * blend;
-    } else {
-      this.unicorn.x = shared.x;
-      this.unicorn.y = shared.y;
-    }
+    const at = this.placeAt(now);
+    this.unicorn.x = at.x;
+    this.unicorn.y = at.y;
 
     // The walk cycle and which way it faces both come from how far it actually
-    // moved, which works the same whether it is on its path or off chasing.
+    // moved, which works the same on its path or off chasing.
     const movedX = this.unicorn.x - this.lastX;
     const movedY = this.unicorn.y - this.lastY;
     this.lastX = this.unicorn.x;

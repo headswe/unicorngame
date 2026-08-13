@@ -191,6 +191,8 @@ async function start(): Promise<void> {
     x: number,
     y: number,
     seed: string,
+    /** Unix seconds the spell was cast — shared, so berries fall in step. */
+    at: number,
     foal?: UnicornVariant,
     mine = false,
     /** Seconds since it was cast, when catching up on a meadow already in progress. */
@@ -203,7 +205,7 @@ async function start(): Promise<void> {
 
     if (id === 'jordgubbsregn') {
       if (audible) sfx.rainSpell();
-      world.rainStrawberries(x, y, rng);
+      world.rainStrawberries(x, y, rng, seed, at);
     } else if (id === 'blomstercirkel') {
       if (audible) sfx.bloomSpell();
       world.bloomFlowers(x, y, rng);
@@ -229,9 +231,10 @@ async function start(): Promise<void> {
       // Everything the spell needs to be reproduced elsewhere is settled here,
       // then performed locally and sent — never rolled twice.
       const seed = randomSeed();
+      const at = Date.now() / 1000;
       const foal = spell.id === 'trollagg' ? world.rollFoal() : undefined;
-      applySpell(spell.id, player.x, player.y, seed, foal, true);
-      session.broadcastSpell(spell.id, player.x, player.y, seed, foal);
+      applySpell(spell.id, player.x, player.y, seed, at, foal, true);
+      session.broadcastSpell(spell.id, player.x, player.y, seed, at, foal);
     },
   });
   openSpellbook = () => spellUi.show();
@@ -275,9 +278,12 @@ async function start(): Promise<void> {
       cleaned: () => world.poop.shovelled,
     },
     {
-      onSpell: (id, x, y, seed, foal) => applySpell(id, x, y, seed, foal),
+      onSpell: (id, x, y, seed, at, foal) => applySpell(id, x, y, seed, at, foal),
       onPoop: (poop, x, y) => {
         if (world.poop.spawn(poop, x, y)) sfx.plop();
+      },
+      onEaten: (berry) => {
+        if (world.treats.eatById(berry)) sfx.munch();
       },
       onClean: (poop) => {
         if (world.poop.cleanById(poop)) sfx.sparkle();
@@ -300,7 +306,7 @@ async function start(): Promise<void> {
 
         const now = Date.now() / 1000;
         for (const egg of state.eggs) {
-          applySpell('trollagg', egg.x, egg.y, egg.seed, egg.foal, false, now - egg.since);
+          applySpell('trollagg', egg.x, egg.y, egg.seed, egg.since, egg.foal, false, now - egg.since);
         }
         for (const born of state.foals) world.settle(born.foal, born.x, born.y);
       },
@@ -400,10 +406,15 @@ async function start(): Promise<void> {
     letterTable();
 
     // The player's unicorn grazes on strawberries by walking over them.
+    // Where a child walks is the one thing the clock cannot predict, so a berry
+    // they eat has to be named and sent — otherwise a friend's residents would
+    // go on chasing a strawberry that is not there any more, and the herds would
+    // part company.
     const treat = world.treats.nearest(player.x, player.y, EAT_RADIUS);
-    if (treat && world.treats.eat(treat)) {
+    if (treat?.landed && world.treats.eat(treat)) {
       player.hop();
       sfx.munch();
+      session.broadcastEaten(treat.id);
     }
 
     playerPoopIn -= dt;

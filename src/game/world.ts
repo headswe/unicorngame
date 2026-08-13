@@ -82,6 +82,20 @@ const POOP_BACKLOG = 20 * 60;
 /** How far a unicorn will notice a strawberry and come over for it. */
 const TREAT_SMELL = 9;
 
+/**
+ * Feeding is decided on this grid, in seconds, rather than once a frame.
+ *
+ * Snapping only the *recorded* time was not enough: two browsers whose frames
+ * fall either side of a grid line still decided at different moments and from
+ * different places. Taking the decision itself on the grid — and telling the
+ * herd the grid's time, not the frame's — is what makes two machines choose the
+ * same berry for the same pony.
+ */
+const FEED_GRID = 0.1;
+
+/** Most missed feeding ticks replayed at once — two seconds' worth. */
+const CATCH_UP_TICKS = 20;
+
 interface ScatterSpec {
   id: string;
   count: number;
@@ -136,6 +150,8 @@ export class World {
   private readonly decor: THREE.Group = new THREE.Group();
   /** Next present slot to consider; null until the first frame catches up. */
   private poopSlot: number | null = null;
+  /** Last feeding grid tick acted on, so decisions happen on the grid. */
+  private fedTick = -1;
   private shovelSprite: THREE.Object3D | null = null;
   /** False only when the sprite is missing, which keeps the hint honest. */
   hasLetterTable = false;
@@ -354,8 +370,8 @@ export class World {
   }
 
   /** Casts strawberry rain around a point. */
-  rainStrawberries(x: number, y: number, rng: Rng): void {
-    this.treats.rain(x, y, 14, 5.5, rng);
+  rainStrawberries(x: number, y: number, rng: Rng, tag: string, at: number): void {
+    this.treats.rain(x, y, 14, 5.5, rng, tag, at);
   }
 
   /** Blooms a ring of flowers around a point, each popping up in turn. */
@@ -439,8 +455,18 @@ export class World {
 
     this.dropPresents(now);
     this.poop.update(dt);
-    this.treats.update(dt);
-    this.feedResidents();
+    this.treats.update(dt, now);
+    // On the grid, with the grid's time, and never skipping one. A browser
+    // running slowly — or parked in a background tab, where the frame loop is
+    // throttled to a crawl — must still take the same decisions at the same
+    // moments as one running at sixty, or the two herds part company the
+    // instant a shower starts.
+    const tick = Math.floor(now / FEED_GRID);
+    if (this.fedTick < 0) this.fedTick = tick - 1;
+    for (let t = Math.max(this.fedTick + 1, tick - CATCH_UP_TICKS); t <= tick; t++) {
+      this.feedResidents(t * FEED_GRID);
+    }
+    this.fedTick = tick;
     this.growBlooms(dt);
     // Last, because a hatching egg adds to `residents` and nothing above may
     // still be part-way through iterating it.
@@ -483,10 +509,18 @@ export class World {
   }
 
   /** Unicorns notice strawberries nearby, walk over, and eat them. */
-  private feedResidents(): void {
+  /**
+   * Unicorns notice strawberries nearby, walk over, and eat them.
+   *
+   * Every decision here is taken from positions that are themselves functions
+   * of the clock, and the walk that follows is too — so two browsers with the
+   * same berries send the same ponies to the same ones. Nothing about feeding
+   * goes over the wire.
+   */
+  private feedResidents(now: number): void {
     if (!this.treats.count) {
       // Nothing left to chase: everyone drifts back onto the shared path.
-      for (const resident of this.residents) resident.stopChasing();
+      for (const resident of this.residents) resident.stopChasing(now);
       return;
     }
 
@@ -494,17 +528,21 @@ export class World {
       const unicorn = resident.unicorn;
       const treat = this.treats.nearest(unicorn.x, unicorn.y, TREAT_SMELL);
       if (!treat) {
-        resident.stopChasing();
+        resident.stopChasing(now);
         continue;
       }
 
-      if (Math.hypot(treat.x - unicorn.x, treat.y - unicorn.y) <= EAT_RADIUS) {
+      const reached = Math.hypot(treat.x - unicorn.x, treat.y - unicorn.y) <= EAT_RADIUS;
+      // Standing over one that is still in the air: wait for it rather than
+      // eating it out of the sky.
+      if (reached && treat.landed) {
         if (this.treats.eat(treat)) {
           unicorn.hop();
           this.onEat?.();
         }
-      } else {
-        resident.goTo(treat.x, treat.y);
+        resident.stopChasing(now);
+      } else if (!reached) {
+        resident.goTo(treat.x, treat.y, now);
       }
     }
   }

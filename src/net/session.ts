@@ -34,11 +34,20 @@ const IDLE_HZ = 2;
 
 export interface SessionCallbacks {
   /** Someone else cast a spell; replay it locally so both screens agree. */
-  onSpell(spell: string, x: number, y: number, seed: string, variant?: UnicornVariant): void;
+  onSpell(
+    spell: string,
+    x: number,
+    y: number,
+    seed: string,
+    at: number,
+    variant?: UnicornVariant,
+  ): void;
   /** Someone else's unicorn left a present. */
   onPoop(poop: string, x: number, y: number): void;
   /** Someone shovelled one, named so both screens remove the same poop. */
   onClean(poop: string): void;
+  /** A friend's unicorn ate a named strawberry. */
+  onEaten(berry: string): void;
   /** What a peer says has already been shovelled here today. */
   onCleanedList(poops: string[]): void;
   /** The meadow as the relay has it, handed over on connecting. */
@@ -132,10 +141,11 @@ export class Session {
     x: number,
     y: number,
     seed: string,
+    at: number,
     variant?: UnicornVariant,
   ): void {
     if (this.status !== 'online') return;
-    this.transport.send({ t: 'spell', id: this.id, spell, x, y, seed, variant });
+    this.transport.send({ t: 'spell', id: this.id, spell, x, y, seed, at, variant });
   }
 
   /** Tells everyone the player's unicorn left a present. */
@@ -148,6 +158,12 @@ export class Session {
   broadcastHatched(egg: string, foal: UnicornVariant, x: number, y: number): void {
     if (this.status !== 'online') return;
     this.transport.send({ t: 'hatched', id: this.id, egg, foal, x, y });
+  }
+
+  /** Tells everyone the player's unicorn ate a named strawberry. */
+  broadcastEaten(berry: string): void {
+    if (this.status !== 'online') return;
+    this.transport.send({ t: 'eaten', id: this.id, berry });
   }
 
   /** Tells everyone a poop was shovelled. */
@@ -193,6 +209,7 @@ export class Session {
           message.x,
           message.y,
           message.seed,
+          message.at,
           message.variant,
         );
         break;
@@ -201,6 +218,9 @@ export class Session {
         break;
       case 'clean':
         this.callbacks.onClean(message.poop);
+        break;
+      case 'eaten':
+        this.callbacks.onEaten(message.berry);
         break;
       case 'hatched':
         // Nothing to do: the egg on this screen is hatching on its own clock.
