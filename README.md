@@ -321,8 +321,35 @@ same one on every screen. A `hello` carries everything the sender has cleaned
 today, which is how a child joining at four in the afternoon avoids arriving to
 a field their cousin cleared at ten.
 
-Still per-machine: who eats which strawberry, and — until the day store below
-exists — anything cleaned while nobody else was online.
+Still per-machine: who eats which strawberry. Nobody will ever notice.
+
+### What the meadow remembers
+
+Deriving things from the clock turned out to cover almost everything, which
+leaves the store very small. Only the *choices* survive a reload:
+
+| kept | why it can't be derived |
+|---|---|
+| shovelled poop | a choice, not a consequence |
+| live eggs | cast at an arbitrary moment, carrying a rolled foal |
+| hatchlings | the ponies the children made |
+
+It is bucketed by local date (`Europe/Stockholm` by default, `ANGEN_TIMEZONE`
+to change it) and resets each morning — **except the hatchlings, which carry
+over.** A pony a child made should not be gone by breakfast.
+
+The relay learns all of it by watching messages it is relaying anyway, so
+clients tell it almost nothing extra. A live egg is stored with the moment it
+was cast, so reopening the game resumes its timer rather than restarting it —
+and if it was due while nobody was watching, the foal is simply there instead of
+being made to hatch again.
+
+Written to `/home/data/meadow.json` on App Service, whose `/home` survives a
+worker recycle; `./data` locally, or set `ANGEN_DATA_DIR`. Saves are debounced
+and written via a temporary file and a rename, so a recycle mid-write cannot
+leave a half-file that fails to parse the next morning. If the file is
+unreadable the relay starts with a fresh meadow rather than refusing to start —
+losing a day's tidying is a shame, leaving the children with nothing is worse.
 
 There is no host and no server-side authority — every browser runs its own
 meadow and simply draws the others walking through it. Nothing in `src/net/` can

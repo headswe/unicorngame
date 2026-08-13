@@ -1,11 +1,11 @@
 /**
  * The meadow relay.
  *
- * One lobby, and it does exactly one thing: whatever a browser sends, everyone
- * else in the lobby gets. It never parses a message, never keeps game state,
- * and never decides anything — all of that lives in the clients, which each run
- * their own copy of the meadow. That is why this file is short, and why it
- * cannot be the thing that breaks the game.
+ * One lobby. Whatever a browser sends, everyone else in the lobby gets — and on
+ * the way past, the few things worth keeping are noticed and written down (see
+ * meadow.js). It still decides nothing: the clients each run their own copy of
+ * the meadow, and this only remembers the choices they made, so a child who
+ * reloads at teatime does not find the morning's poop back again.
  *
  * Deliberately plain Node with one dependency. There is nothing Azure-specific
  * in here, so the same server runs on a laptop, on App Service, or anywhere
@@ -17,6 +17,8 @@
 import { createServer } from 'node:http';
 
 import { WebSocketServer } from 'ws';
+
+import { Meadow } from './meadow.js';
 
 /** App Service tells the app which port to listen on. */
 const PORT = Number(process.env.PORT ?? 8080);
@@ -44,13 +46,15 @@ const http = createServer((req, res) => {
   // App Service pings the root to decide whether the app is alive.
   if (req.url === '/' || req.url === '/healthz') {
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ ok: true, players: lobby.size }));
+    res.end(JSON.stringify({ ok: true, players: lobby.size, day: meadow.snapshot().day }));
     return;
   }
   res.writeHead(404).end();
 });
 
 const wss = new WebSocketServer({ server: http, path: PATH, maxPayload: MAX_MESSAGE });
+
+const meadow = new Meadow();
 
 /** Everyone currently in the meadow. */
 const lobby = new Set();
@@ -67,9 +71,20 @@ wss.on('connection', (socket) => {
     socket.isAlive = true;
   });
 
+  // Hand the newcomer the meadow as it stands before anything else arrives.
+  socket.send(JSON.stringify(meadow.snapshot()));
+
   socket.on('message', (data, isBinary) => {
     // The protocol is JSON text. Anything else is not this game.
     if (isBinary) return;
+
+    // Watch what goes past, but never let a malformed message stop the relay
+    // doing its actual job.
+    try {
+      meadow.observe(JSON.parse(data.toString()));
+    } catch {
+      // Not JSON, or not something worth remembering. Relay it anyway.
+    }
 
     for (const peer of lobby) {
       // Never echo to the sender: a browser must not be introduced to itself,
@@ -102,6 +117,14 @@ const heartbeat = setInterval(() => {
 
 wss.on('close', () => clearInterval(heartbeat));
 
+// A recycle should not lose the afternoon's tidying.
+for (const signal of ['SIGTERM', 'SIGINT']) {
+  process.on(signal, () => {
+    void meadow.save().finally(() => process.exit(0));
+  });
+}
+
+await meadow.load();
 http.listen(PORT, () => {
   console.log(`relay listening on :${PORT}${PATH}`);
 });

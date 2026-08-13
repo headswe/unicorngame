@@ -167,9 +167,12 @@ async function start(): Promise<void> {
   world.onEat = () => sfx.munch();
   world.treats.onLand = () => sfx.drop();
   world.eggs.onCrack = () => sfx.crack();
-  world.onHatch = (born) => {
+  world.onHatch = (egg, born, x, y) => {
     sfx.hatch();
     hud.announce(`${born.name} kläcktes! Säg hej.`);
+    // Everyone watching reports it; the relay keeps the first and files the
+    // foal away so it is still here tomorrow.
+    session.broadcastHatched(egg, born, x, y);
   };
 
   // --- spellcasting ---------------------------------------------------------
@@ -187,20 +190,25 @@ async function start(): Promise<void> {
     seed: string,
     foal?: UnicornVariant,
     mine = false,
+    /** Seconds since it was cast, when catching up on a meadow already in progress. */
+    elapsed = 0,
   ): void => {
     const rng = makeRng(seed);
+    // A spell being caught up on happened while nobody was here. Replaying its
+    // sound would mean walking in to a fanfare for something already over.
+    const audible = elapsed < 2;
 
     if (id === 'jordgubbsregn') {
-      sfx.rainSpell();
+      if (audible) sfx.rainSpell();
       world.rainStrawberries(x, y, rng);
     } else if (id === 'blomstercirkel') {
-      sfx.bloomSpell();
+      if (audible) sfx.bloomSpell();
       world.bloomFlowers(x, y, rng);
     } else if (id === 'trollagg' && foal) {
-      sfx.eggSpell();
+      if (audible) sfx.eggSpell();
       // Only the child who cast it is told to go and wait; announcing a friend's
       // egg across the meadow would just be noise.
-      if (world.layEgg(x, y, rng, foal) && mine) {
+      if (world.layEgg(seed, x, y, rng, foal, elapsed) && mine) {
         hud.announce('Ett ägg! Vänta hos det tills det kläcks.', 8);
       }
     }
@@ -274,6 +282,20 @@ async function start(): Promise<void> {
       // A friend's record of the tidying, adopted so today's presents are not
       // all put back the moment a latecomer works out that they happened.
       onCleanedList: (poops) => world.poop.forget(poops),
+      // The meadow as the relay remembers it: the tidying already done, the
+      // eggs still waiting, and the foals from earlier days. Everything else —
+      // the field, the herd, the residents' droppings — regenerates from the
+      // clock and needs nothing here.
+      onState: (state) => {
+        world.poop.forget(state.cleaned);
+        for (const p of state.poops) world.poop.spawn(p.id, p.x, p.y);
+
+        const now = Date.now() / 1000;
+        for (const egg of state.eggs) {
+          applySpell('trollagg', egg.x, egg.y, egg.seed, egg.foal, false, now - egg.since);
+        }
+        for (const born of state.foals) world.settle(born.foal, born.x, born.y);
+      },
       onStatus: (status) => {
         if (status === 'online') {
           settledAt = performance.now() + 3000;

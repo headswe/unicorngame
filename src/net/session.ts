@@ -25,6 +25,7 @@ import {
   PROTOCOL_VERSION,
   type NetMessage,
   type Pose,
+  type StateMessage,
 } from './protocol.ts';
 import type { NetStatus, Transport } from './transport.ts';
 
@@ -40,6 +41,8 @@ export interface SessionCallbacks {
   onClean(poop: string): void;
   /** What a peer says has already been shovelled here today. */
   onCleanedList(poops: string[]): void;
+  /** The meadow as the relay has it, handed over on connecting. */
+  onState(state: StateMessage): void;
   onStatus(status: NetStatus): void;
 }
 
@@ -141,6 +144,12 @@ export class Session {
     this.transport.send({ t: 'poop', id: this.id, poop, x, y });
   }
 
+  /** Reports an egg opening, so the relay can file the foal away for tomorrow. */
+  broadcastHatched(egg: string, foal: UnicornVariant, x: number, y: number): void {
+    if (this.status !== 'online') return;
+    this.transport.send({ t: 'hatched', id: this.id, egg, foal, x, y });
+  }
+
   /** Tells everyone a poop was shovelled. */
   broadcastClean(poop: string): void {
     if (this.status !== 'online') return;
@@ -148,6 +157,11 @@ export class Session {
   }
 
   private receive(message: NetMessage): void {
+    // The relay's own greeting is the one message with no sender.
+    if (message.t === 'state') {
+      this.callbacks.onState(message);
+      return;
+    }
     // A relay broadcasts to everyone, so our own messages can come back.
     if (!('id' in message) || message.id === this.id) return;
 
@@ -187,6 +201,9 @@ export class Session {
         break;
       case 'clean':
         this.callbacks.onClean(message.poop);
+        break;
+      case 'hatched':
+        // Nothing to do: the egg on this screen is hatching on its own clock.
         break;
       case 'bye':
         this.visitors.remove(message.id);

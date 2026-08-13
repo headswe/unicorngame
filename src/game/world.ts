@@ -131,7 +131,7 @@ export class World {
   /** Called when any unicorn eats a strawberry. */
   onEat: (() => void) | null = null;
   /** Called with the newcomer's name when an egg opens. */
-  onHatch: ((variant: UnicornVariant) => void) | null = null;
+  onHatch: ((id: string, variant: UnicornVariant, x: number, y: number) => void) | null = null;
 
   private readonly decor: THREE.Group = new THREE.Group();
   /** Next present slot to consider; null until the first frame catches up. */
@@ -164,7 +164,7 @@ export class World {
     this.treats = new TreatField(assets);
     this.scene.add(this.treats.group);
     this.eggs = new EggNest(assets);
-    this.eggs.onHatch = (variant, x, y) => this.hatch(variant, x, y);
+    this.eggs.onHatch = (id, variant, x, y) => this.hatch(id, variant, x, y);
     this.scene.add(this.eggs.group);
     this.placeShovel();
     this.placeLetterTable();
@@ -294,7 +294,15 @@ export class World {
    * lands, how long it takes — comes from `rng`, so casting this with the same
    * seed on two machines puts the same egg in the same place.
    */
-  layEgg(x: number, y: number, rng: Rng, foal: UnicornVariant): boolean {
+  layEgg(
+    id: string,
+    x: number,
+    y: number,
+    rng: Rng,
+    foal: UnicornVariant,
+    /** Seconds this egg has already been sitting there, when catching up. */
+    elapsed = 0,
+  ): boolean {
     if (!this.eggs.available) return false;
 
     // Beside the caster rather than under them, and never outside the fence.
@@ -307,17 +315,34 @@ export class World {
       WORLD_BOUNDS.maxY,
     );
 
-    return this.eggs.lay(eggX, eggY, foal, rng.range(HATCH_TIME.min, HATCH_TIME.max));
+    const hatchIn = rng.range(HATCH_TIME.min, HATCH_TIME.max) - elapsed;
+    // Already due: it opened while nobody was looking, so the foal is simply
+    // here rather than being made to hatch all over again.
+    if (hatchIn <= 0) {
+      this.settle(foal, eggX, eggY);
+      return true;
+    }
+    return this.eggs.lay(id, eggX, eggY, foal, hatchIn);
   }
 
   /** An egg has opened: the foal joins the herd where the shell was. */
-  private hatch(variant: UnicornVariant, x: number, y: number): void {
+  private hatch(id: string, variant: UnicornVariant, x: number, y: number): void {
+    this.settle(variant, x, y, true);
+    this.onHatch?.(id, variant, x, y);
+  }
+
+  /**
+   * Puts a foal into the herd. Used both by an egg opening in front of the
+   * child and by one that opened while they were away, which is why the
+   * celebrating is optional.
+   */
+  settle(variant: UnicornVariant, x: number, y: number, celebrate = false): void {
     const unicorn = new Unicorn(variant, this.assets);
     unicorn.x = x;
     unicorn.y = y;
-    unicorn.facing = Math.random() < 0.5 ? 1 : -1;
+    unicorn.facing = hash01(hashSeed(variant.seed), 3) < 0.5 ? 1 : -1;
     // Arrives mid-bounce, which is the first thing you see it do.
-    unicorn.hop();
+    if (celebrate) unicorn.hop();
     this.addResident(
       unicorn,
       // Derived from the foal rather than rolled, so a hatchling rambles the
@@ -326,7 +351,6 @@ export class World {
       // Newborns keep close to where they hatched.
       4,
     );
-    this.onHatch?.(variant);
   }
 
   /** Casts strawberry rain around a point. */

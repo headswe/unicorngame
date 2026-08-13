@@ -108,6 +108,44 @@ export interface CleanMessage {
   poop: string;
 }
 
+/** An egg opened. Sent by whoever sees it first; the relay keeps the first. */
+export interface HatchedMessage {
+  t: 'hatched';
+  id: string;
+  egg: string;
+  foal: UnicornVariant;
+  x: number;
+  y: number;
+}
+
+/**
+ * The meadow as it stands, sent by the relay to anyone who connects.
+ *
+ * Only what cannot be worked out from the clock is in here. The field, the
+ * herd and the day's droppings all regenerate identically on every machine;
+ * what does not is the *choices* — which poops were shovelled, which eggs are
+ * waiting, and which foals have been hatched.
+ */
+export interface StateMessage {
+  t: 'state';
+  /** Local date the rest of this belongs to, e.g. `2026-08-13`. */
+  day: string;
+  cleaned: string[];
+  /** Presents left by players rather than by residents; not derivable. */
+  poops: Array<{ id: string; x: number; y: number }>;
+  eggs: Array<{
+    id: string;
+    x: number;
+    y: number;
+    seed: string;
+    foal: UnicornVariant;
+    /** Unix seconds when the egg was conjured, so its timer can be resumed. */
+    since: number;
+  }>;
+  /** Hatchlings. These outlive the day — a pony a child made is theirs. */
+  foals: Array<{ foal: UnicornVariant; x: number; y: number }>;
+}
+
 export interface ByeMessage {
   t: 'bye';
   id: string;
@@ -119,6 +157,8 @@ export type NetMessage =
   | SpellMessage
   | PoopMessage
   | CleanMessage
+  | HatchedMessage
+  | StateMessage
   | ByeMessage;
 
 /** A cheap unique name for this browser tab, for the length of one visit. */

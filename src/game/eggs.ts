@@ -34,6 +34,8 @@ const POP_TIME = 0.45;
 const ARRIVE_TIME = 0.5;
 
 interface Egg {
+  /** Names this egg across machines, so a hatch can be reported once. */
+  id: string;
   x: number;
   y: number;
   variant: UnicornVariant;
@@ -52,7 +54,7 @@ export class EggNest {
   private readonly eggs: Egg[] = [];
 
   /** Fires when a shell opens, with the foal that was inside it. */
-  onHatch: ((variant: UnicornVariant, x: number, y: number) => void) | null = null;
+  onHatch: ((id: string, variant: UnicornVariant, x: number, y: number) => void) | null = null;
   /** Fires the moment the first crack shows. */
   onCrack: (() => void) | null = null;
 
@@ -97,8 +99,9 @@ export class EggNest {
   }
 
   /** Conjures an egg onto the grass. Returns false if the art is missing. */
-  lay(x: number, y: number, variant: UnicornVariant, hatchIn: number): boolean {
+  lay(id: string, x: number, y: number, variant: UnicornVariant, hatchIn: number): boolean {
     if (!this.available) return false;
+    if (this.eggs.some((e) => e.id === id)) return false;
 
     const group = new THREE.Group();
 
@@ -118,6 +121,7 @@ export class EggNest {
     this.group.add(group);
 
     this.eggs.push({
+      id,
       x,
       y,
       variant,
@@ -184,7 +188,7 @@ export class EggNest {
 
       if (remaining <= 0) {
         egg.popping = 0;
-        this.onHatch?.(egg.variant, egg.x, egg.y);
+        this.onHatch?.(egg.id, egg.variant, egg.x, egg.y);
         continue;
       }
 
