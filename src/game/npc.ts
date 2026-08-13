@@ -1,81 +1,176 @@
 /**
  * The unicorns that live in the meadow and mind their own business.
  *
- * Each one alternates between grazing on the spot and ambling to somewhere
- * nearby. They keep to a home patch so the meadow stays evenly populated
- * instead of everyone drifting into one corner, and they wait a beat before
- * setting off so a group never moves in lockstep.
+ * Where each one stands is a **pure function of the clock**, not something
+ * accumulated frame by frame. That is the whole design, and it exists because
+ * two children have to see the same herd.
+ *
+ * The obvious way to write this — pick a target, walk toward it a bit each
+ * frame — cannot be shared. Two browsers integrating their own frame times
+ * drift apart whenever one of them stutters, and worse, a child who opens the
+ * game half an hour later starts every resident back at its spawn point. The
+ * herds would never have matched for a moment.
+ *
+ * So instead: time is chopped into legs of a fixed length, the endpoints of leg
+ * *n* are hashed out of the resident's seed and *n*, and the position at any
+ * moment is found by working out which leg the clock is in and how far through
+ * it we are. Same answer on every machine, in constant time, whether you joined
+ * at nine or at half past — and no positions on the wire at all.
+ *
+ * Chasing a strawberry is the one exception: a local detour off the shared path
+ * that eases back onto it afterwards.
  */
 
-import type { Rng } from '../engine/rng.ts';
 import { clamp, type WorldBounds } from './player.ts';
 import type { Unicorn } from './unicorn.ts';
 
-const WANDER_SPEED = 1.5;
-const ARRIVAL = 0.3;
+/**
+ * One walk plus one graze. Constant, so the leg containing a given moment is a
+ * division rather than a walk through the resident's whole history — a client
+ * joining in the afternoon must not have to replay the morning.
+ */
+const LEG_SECONDS = 11;
+
+/** A leg spends somewhere in this range walking; the rest is standing still. */
+const WALK_FRACTION = { min: 0.35, max: 0.62 };
+
+/** How fast a detour toward a strawberry is walked, in world units a second. */
+const CHASE_SPEED = 1.8;
+
+/** Seconds spent easing back onto the shared path after a detour. */
+const REJOIN_TIME = 1.6;
+
+/**
+ * Deterministic value in [0, 1) from two integers. Needed instead of a seeded
+ * stream because legs are addressed directly — leg 400 has to be answerable
+ * without having generated legs 0 through 399.
+ */
+function hash01(a: number, b: number): number {
+  let h = Math.imul(a ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul(b + 0x165667b1, 0xc2b2ae35);
+  h ^= h >>> 15;
+  h = Math.imul(h, 0x2545f491);
+  h ^= h >>> 13;
+  h = Math.imul(h, 0x27d4eb2f);
+  return (h >>> 0) / 4294967296;
+}
+
+/** Smooth start and stop, so a resident does not jerk into motion. */
+function ease(t: number): number {
+  return t * t * (3 - 2 * t);
+}
 
 export class WanderingUnicorn {
-  private targetX: number;
-  private targetY: number;
-  private restFor: number;
+  /** Set while chasing something; the shared path resumes once it clears. */
+  private chasing: { x: number; y: number } | null = null;
+  /** Counts down while easing back onto the shared path after a chase. */
+  private rejoining = 0;
+
+  private lastX: number;
+  private lastY: number;
 
   constructor(
     readonly unicorn: Unicorn,
-    private readonly rng: Rng,
+    private readonly seed: number,
     private readonly homeX: number,
     private readonly homeY: number,
     private readonly roam: number,
     private readonly bounds: WorldBounds,
   ) {
-    this.targetX = unicorn.x;
-    this.targetY = unicorn.y;
-    this.restFor = rng.range(0, 6);
+    this.lastX = unicorn.x;
+    this.lastY = unicorn.y;
   }
 
-  /** Sends this unicorn somewhere specific, interrupting whatever it was doing. */
+  /** Where this resident rests at the end of leg `n`. */
+  private restingPlace(n: number): { x: number; y: number } {
+    const angle = hash01(this.seed, n * 3) * Math.PI * 2;
+    // Square-rooted so the resting places spread evenly over the patch instead
+    // of bunching around the middle of it.
+    const distance = Math.sqrt(hash01(this.seed, n * 3 + 1)) * this.roam;
+    return {
+      x: clamp(this.homeX + Math.cos(angle) * distance, this.bounds.minX, this.bounds.maxX),
+      y: clamp(this.homeY + Math.sin(angle) * distance, this.bounds.minY, this.bounds.maxY),
+    };
+  }
+
+  /**
+   * Where this resident is at absolute time `now`, in seconds.
+   *
+   * Every browser passes the same wall-clock value and gets the same answer,
+   * which is what makes the herd shared without sending anything.
+   */
+  private placeAt(now: number): { x: number; y: number } {
+    // Each resident starts its cycle at its own moment, so eighteen ponies do
+    // not all set off on the same beat.
+    const offset = hash01(this.seed, 0xffff) * LEG_SECONDS;
+    const t = now + offset;
+    const leg = Math.floor(t / LEG_SECONDS);
+    const through = t / LEG_SECONDS - leg;
+
+    const from = this.restingPlace(leg);
+    const to = this.restingPlace(leg + 1);
+
+    const walkFor =
+      WALK_FRACTION.min +
+      hash01(this.seed, leg * 3 + 2) * (WALK_FRACTION.max - WALK_FRACTION.min);
+
+    // Past the walking part of the leg, it is standing at the far end grazing.
+    if (through >= walkFor) return to;
+
+    const k = ease(through / walkFor);
+    return { x: from.x + (to.x - from.x) * k, y: from.y + (to.y - from.y) * k };
+  }
+
+  /** Sends this unicorn after something, interrupting its ramble. */
   goTo(x: number, y: number): void {
-    this.targetX = clamp(x, this.bounds.minX, this.bounds.maxX);
-    this.targetY = clamp(y, this.bounds.minY, this.bounds.maxY);
-    this.restFor = 0;
+    this.chasing = {
+      x: clamp(x, this.bounds.minX, this.bounds.maxX),
+      y: clamp(y, this.bounds.minY, this.bounds.maxY),
+    };
   }
 
-  private chooseTarget(): void {
-    const angle = this.rng.range(0, Math.PI * 2);
-    const distance = this.rng.range(1.5, this.roam);
-    this.targetX = clamp(
-      this.homeX + Math.cos(angle) * distance,
-      this.bounds.minX,
-      this.bounds.maxX,
-    );
-    this.targetY = clamp(
-      this.homeY + Math.sin(angle) * distance,
-      this.bounds.minY,
-      this.bounds.maxY,
-    );
+  /** Gives up a chase and drifts back onto the shared path. */
+  stopChasing(): void {
+    if (!this.chasing) return;
+    this.chasing = null;
+    this.rejoining = REJOIN_TIME;
   }
 
-  update(dt: number): void {
-    let moving = false;
+  update(dt: number, now: number): void {
+    const shared = this.placeAt(now);
 
-    if (this.restFor > 0) {
-      this.restFor -= dt;
-      if (this.restFor <= 0) this.chooseTarget();
-    } else {
-      const dx = this.targetX - this.unicorn.x;
-      const dy = this.targetY - this.unicorn.y;
+    if (this.chasing) {
+      const dx = this.chasing.x - this.unicorn.x;
+      const dy = this.chasing.y - this.unicorn.y;
       const distance = Math.hypot(dx, dy);
 
-      if (distance < ARRIVAL) {
-        this.restFor = this.rng.range(2.5, 9);
+      if (distance < 0.25) {
+        this.stopChasing();
       } else {
-        const ease = Math.min(1, distance / 1.5);
-        this.unicorn.x += (dx / distance) * WANDER_SPEED * ease * dt;
-        this.unicorn.y += (dy / distance) * WANDER_SPEED * ease * dt;
-        this.unicorn.faceMovement(dx);
-        moving = ease > 0.15;
+        const step = Math.min(distance, CHASE_SPEED * dt);
+        this.unicorn.x += (dx / distance) * step;
+        this.unicorn.y += (dy / distance) * step;
       }
+    } else if (this.rejoining > 0) {
+      // Slide back onto the shared path rather than snapping, so a pony that
+      // wandered off for a strawberry does not teleport home.
+      this.rejoining = Math.max(0, this.rejoining - dt);
+      const blend = 1 - this.rejoining / REJOIN_TIME;
+      this.unicorn.x += (shared.x - this.unicorn.x) * blend;
+      this.unicorn.y += (shared.y - this.unicorn.y) * blend;
+    } else {
+      this.unicorn.x = shared.x;
+      this.unicorn.y = shared.y;
     }
 
-    this.unicorn.update(dt, moving);
+    // The walk cycle and which way it faces both come from how far it actually
+    // moved, which works the same whether it is on its path or off chasing.
+    const movedX = this.unicorn.x - this.lastX;
+    const movedY = this.unicorn.y - this.lastY;
+    this.lastX = this.unicorn.x;
+    this.lastY = this.unicorn.y;
+
+    const speed = dt > 0 ? Math.hypot(movedX, movedY) / dt : 0;
+    this.unicorn.faceMovement(movedX);
+    this.unicorn.update(dt, speed > 0.12);
   }
 }

@@ -10,7 +10,7 @@
 import * as THREE from 'three';
 
 import type { AssetLibrary, Part } from '../engine/assets.ts';
-import { makeRng, type Rng } from '../engine/rng.ts';
+import { hashSeed, makeRng, type Rng } from '../engine/rng.ts';
 import { createSprite, type Sprite } from '../engine/sprite.ts';
 import { depthOrder, PART_ORDER, projectY } from '../engine/view.ts';
 import { Backdrop } from './backdrop.ts';
@@ -220,20 +220,13 @@ export class World {
    */
   private addResident(
     unicorn: Unicorn,
-    wanderSeed: string,
+    wanderSeed: number,
     roam: number,
     firstPoopIn: number,
   ): void {
     this.scene.add(unicorn.group);
     this.residents.push(
-      new WanderingUnicorn(
-        unicorn,
-        makeRng(wanderSeed),
-        unicorn.x,
-        unicorn.y,
-        roam,
-        WORLD_BOUNDS,
-      ),
+      new WanderingUnicorn(unicorn, wanderSeed, unicorn.x, unicorn.y, roam, WORLD_BOUNDS),
     );
     this.poopTimers.push(firstPoopIn);
   }
@@ -256,7 +249,7 @@ export class World {
       unicorn.y = y;
       unicorn.facing = rng.chance(0.5) ? 1 : -1;
       // Staggered, so the meadow does not fill up all at once at the start.
-      this.addResident(unicorn, `vandra-${i}`, rng.range(3, 9), rng.range(4, POOP_INTERVAL.max));
+      this.addResident(unicorn, rng.int(1e9), rng.range(3, 9), rng.range(4, POOP_INTERVAL.max));
     }
   }
 
@@ -309,7 +302,9 @@ export class World {
     unicorn.hop();
     this.addResident(
       unicorn,
-      `vandra-${variant.seed}`,
+      // Derived from the foal rather than rolled, so a hatchling rambles the
+      // same way on every screen that watched it hatch.
+      hashSeed(variant.seed),
       // Newborns keep close to where they hatched.
       4,
       randomBetween(POOP_INTERVAL.min, POOP_INTERVAL.max),
@@ -394,8 +389,13 @@ export class World {
   }
 
   update(dt: number): void {
+    // The herd's positions are a function of the wall clock, so every browser
+    // showing this meadow draws it the same way — including one that opened
+    // half an hour later than the other.
+    const now = Date.now() / 1000;
+
     for (const [i, resident] of this.residents.entries()) {
-      resident.update(dt);
+      resident.update(dt, now);
 
       // Presents arrive on each unicorn's own clock, so they never all go at
       // once, and only while it is standing still.
@@ -421,12 +421,19 @@ export class World {
 
   /** Unicorns notice strawberries nearby, walk over, and eat them. */
   private feedResidents(): void {
-    if (!this.treats.count) return;
+    if (!this.treats.count) {
+      // Nothing left to chase: everyone drifts back onto the shared path.
+      for (const resident of this.residents) resident.stopChasing();
+      return;
+    }
 
     for (const resident of this.residents) {
       const unicorn = resident.unicorn;
       const treat = this.treats.nearest(unicorn.x, unicorn.y, TREAT_SMELL);
-      if (!treat) continue;
+      if (!treat) {
+        resident.stopChasing();
+        continue;
+      }
 
       if (Math.hypot(treat.x - unicorn.x, treat.y - unicorn.y) <= EAT_RADIUS) {
         if (this.treats.eat(treat)) {

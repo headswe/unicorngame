@@ -293,10 +293,22 @@ two things worth putting on the wire:
   outright rather than a seed, because two children watching one egg must not
   see different ponies come out of it.
 
-Deliberately *not* synchronised: the wandering residents, the poop they leave,
-and who eats which strawberry. Keeping those in lockstep would need a fixed
-timestep and eighteen more moving things on the wire, to fix a difference no
-child will ever notice.
+**The herd is shared without being sent.** Where each resident stands is a pure
+function of the wall clock — see `src/game/npc.ts`. Time is chopped into legs of
+a fixed length, the endpoints of leg *n* are hashed out of the resident's seed
+and *n*, and a position is found by working out which leg the clock is in and
+how far through it we are. Every browser gets the same answer, in constant time,
+with nothing on the wire.
+
+This replaced the obvious version — pick a target, walk toward it each frame —
+which could not be shared. Two browsers integrating their own frame times drift
+apart whenever one stutters, and much worse, a child opening the game half an
+hour later starts every resident back at its spawn point. Eighteen ponies in the
+wrong places is exactly the kind of thing two children on a call notice
+immediately: "look at the blue one by the tree" has to mean something.
+
+Still *not* synchronised: the poop they leave and who eats which strawberry.
+Those are per-machine for now.
 
 There is no host and no server-side authority — every browser runs its own
 meadow and simply draws the others walking through it. Nothing in `src/net/` can
