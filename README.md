@@ -527,9 +527,11 @@ push to the default branch. `base` is `'./'` in the Vite config, so the build is
 path-independent — it works at a repo subpath, at a domain root, or straight off
 the filesystem, with no rebuild.
 
-To turn on multiplayer for the published game, set `VITE_ANGEN_RELAY` as a
-repository variable and pass it through to the build step in that workflow.
-Without it the deployed game is single-player, which is a safe default.
+Multiplayer is on: the build passes `VITE_ANGEN_RELAY` to Vite, pointing at the
+relay in Sweden Central. The URL is public by nature — it is the address a
+child's browser dials, so it is in the bundle whatever we do — and it is
+overridable with a `VITE_ANGEN_RELAY` repository variable without editing the
+workflow. Set that variable to an empty string to ship a single-player build.
 
 ## Not built yet
 

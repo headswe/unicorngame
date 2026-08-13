@@ -35,6 +35,13 @@ jobs:
 
       # Runs the typecheck as well, so a broken build never reaches Pages.
       - run: npm run build
+        env:
+          # Where the shared meadow lives. Baked in at build time, and public by
+          # nature — it is the address a child's browser dials, so it ends up in
+          # the bundle whatever we do. Set the `VITE_ANGEN_RELAY` repository
+          # variable to point somewhere else without touching this file; leave
+          # it empty to ship a single-player build.
+          VITE_ANGEN_RELAY: ${{ vars.VITE_ANGEN_RELAY || 'wss://app-unicorngame-prod-001-ckhwanafbsetexfh.swedencentral-01.azurewebsites.net/angen' }}
 
       # Pages is enabled in the repository settings; the workflow token is not
       # allowed to create the site itself, so this only reads the config.
