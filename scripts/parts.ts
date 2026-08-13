@@ -287,6 +287,75 @@ export const PARTS: PartSpec[] = [
     0.45,
   ),
 
+  decor(
+    'flugsvamp',
+    'Flugsvamp',
+    'A single toadstool seen from the side: a bright red domed cap with ' +
+      'round white spots and a short fat creamy white stalk with a little ' +
+      'frill around it.',
+    0.55,
+  ),
+  decor(
+    'solros',
+    'Solros',
+    'One tall sunflower seen from the side: a straight green stem with two ' +
+      'broad leaves and a big round flower head of bright golden petals ' +
+      'around a dark brown seedy middle, turned to face the viewer.',
+    1.9,
+  ),
+  decor(
+    'fjaril',
+    'Fjäril',
+    'A single butterfly seen from above with both wings spread open, drawn ' +
+      'symmetrically: rounded upper and lower wings in soft lilac and warm ' +
+      'pink with pale cream spots along the edges, a small dark body and two ' +
+      'curled antennae.',
+    0.4,
+  ),
+  decor(
+    'nyckelpiga',
+    'Nyckelpiga',
+    'One ladybird seen from above: a round glossy red shell with a neat ' +
+      'black line down the middle and five big round black spots, a small ' +
+      'black head with two tiny antennae, and six little legs.',
+    0.3,
+  ),
+  decor(
+    'stubbe',
+    'Stubbe',
+    'A short wide tree stump seen from the side: a sawn-off trunk of warm ' +
+      'brown bark with a pale sanded top showing a few tree rings, a couple ' +
+      'of gnarled roots at the base and a small green sprout with two leaves ' +
+      'growing out of one side.',
+    0.75,
+  ),
+  decor(
+    'fagelbo',
+    'Fågelbo',
+    'A small round bird nest seen from the side and slightly above: a bowl ' +
+      'woven from fine golden brown twigs and dry grass, holding three ' +
+      'little pale blue speckled eggs.',
+    0.45,
+  ),
+  decor(
+    'bikupa',
+    'Bikupa',
+    'A traditional straw beehive seen from the side: a rounded dome of ' +
+      'coiled honey-coloured straw in stacked rings, narrowing towards the ' +
+      'top, with a small dark arched entrance hole near the bottom and two ' +
+      'tiny friendly striped bees flying beside it.',
+    0.95,
+  ),
+  decor(
+    'brunn',
+    'Brunn',
+    'A little wishing well seen from the side: a low round wall of grey ' +
+      'cobblestones, two short wooden posts holding a small peaked roof of ' +
+      'red wooden shingles, and a wooden bucket hanging from a rope under ' +
+      'the roof.',
+    1.7,
+  ),
+
   // --- caretaking props -----------------------------------------------------
   prop(
     'bajs_regnbage',

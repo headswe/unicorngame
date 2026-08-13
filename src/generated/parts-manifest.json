@@ -319,6 +319,94 @@
     "tintable": false
   },
   {
+    "id": "flugsvamp",
+    "kind": "decor",
+    "label": "Flugsvamp",
+    "url": "assets/parts/flugsvamp.png",
+    "width": 472,
+    "height": 512,
+    "aspect": 0.921875,
+    "worldHeight": 0.55,
+    "tintable": false
+  },
+  {
+    "id": "solros",
+    "kind": "decor",
+    "label": "Solros",
+    "url": "assets/parts/solros.png",
+    "width": 283,
+    "height": 512,
+    "aspect": 0.552734375,
+    "worldHeight": 1.9,
+    "tintable": false
+  },
+  {
+    "id": "fjaril",
+    "kind": "decor",
+    "label": "Fjäril",
+    "url": "assets/parts/fjaril.png",
+    "width": 512,
+    "height": 407,
+    "aspect": 1.257985257985258,
+    "worldHeight": 0.4,
+    "tintable": false
+  },
+  {
+    "id": "nyckelpiga",
+    "kind": "decor",
+    "label": "Nyckelpiga",
+    "url": "assets/parts/nyckelpiga.png",
+    "width": 512,
+    "height": 502,
+    "aspect": 1.0199203187250996,
+    "worldHeight": 0.3,
+    "tintable": false
+  },
+  {
+    "id": "stubbe",
+    "kind": "decor",
+    "label": "Stubbe",
+    "url": "assets/parts/stubbe.png",
+    "width": 512,
+    "height": 338,
+    "aspect": 1.514792899408284,
+    "worldHeight": 0.75,
+    "tintable": false
+  },
+  {
+    "id": "fagelbo",
+    "kind": "decor",
+    "label": "Fågelbo",
+    "url": "assets/parts/fagelbo.png",
+    "width": 512,
+    "height": 392,
+    "aspect": 1.3061224489795917,
+    "worldHeight": 0.45,
+    "tintable": false
+  },
+  {
+    "id": "bikupa",
+    "kind": "decor",
+    "label": "Bikupa",
+    "url": "assets/parts/bikupa.png",
+    "width": 512,
+    "height": 414,
+    "aspect": 1.2367149758454106,
+    "worldHeight": 0.95,
+    "tintable": false
+  },
+  {
+    "id": "brunn",
+    "kind": "decor",
+    "label": "Brunn",
+    "url": "assets/parts/brunn.png",
+    "width": 389,
+    "height": 512,
+    "aspect": 0.759765625,
+    "worldHeight": 1.7,
+    "tintable": false
+  },
+  {
     "id": "bajs_regnbage",
     "kind": "prop",
     "label": "Regnbågsbajs",

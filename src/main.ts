@@ -211,30 +211,33 @@ async function start(): Promise<void> {
   // the alphabet blocks on it, out in the meadow.
   let atTable = false;
   let nearTable = false;
+  /** Whether the line currently on the HUD is the table's to take back. */
+  let tableHint = false;
+
+  const setTableHint = (text: string | null): void => {
+    if (text === null && !tableHint) return;
+    tableHint = text !== null;
+    hud.setHint(text);
+  };
 
   const letterTable = (): void => {
     if (!world.hasLetterTable) return;
     const away = Math.hypot(player.x - TABLE_SPOT.x, player.y - TABLE_SPOT.y);
     nearTable = away < TABLE_NOTICE;
 
-    if (atTable) {
-      // Standing at it. Wait until the player has properly walked off before
-      // the table is allowed to grab them again.
-      if (away > TABLE_LEAVE) {
-        atTable = false;
-        hud.setHint(null);
-      }
-      return;
-    }
+    // Once you are standing at the table it will not grab you again until you
+    // have properly walked off, so closing the game does not reopen it.
+    if (atTable && away > TABLE_LEAVE) atTable = false;
 
-    if (away < TABLE_REACH) {
+    if (!atTable && away < TABLE_REACH) {
       atTable = true;
-      hud.setHint('Gå bort och tillbaka för ett nytt ord!');
+      setTableHint('Gå bort och tillbaka för ett nytt ord!');
       openSpelling();
       return;
     }
 
-    if (nearTable) hud.setHint('Bokstavsbordet! Gå fram och stava.');
+    if (!nearTable) setTableHint(null);
+    else if (!atTable) setTableHint('Bokstavsbordet! Gå fram och stava.');
   };
 
   // --- caretaking ----------------------------------------------------------

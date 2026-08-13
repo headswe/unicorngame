@@ -85,6 +85,14 @@ const SCATTER: ScatterSpec[] = [
   { id: 'hoball', count: 5, min: 0.9, max: 1.1, shadow: true, avoidsClearing: true },
   { id: 'vattenho', count: 4, min: 0.65, max: 0.8, shadow: true, avoidsClearing: true },
   { id: 'apelkorg', count: 4, min: 0.5, max: 0.6, shadow: true, avoidsClearing: true },
+  { id: 'solros', count: 12, min: 1.6, max: 2.2, shadow: true, avoidsClearing: true },
+  { id: 'stubbe', count: 8, min: 0.6, max: 0.85, shadow: true, avoidsClearing: true },
+  { id: 'bikupa', count: 4, min: 0.85, max: 1.05, shadow: true, avoidsClearing: true },
+  { id: 'brunn', count: 2, min: 1.6, max: 1.85, shadow: true, avoidsClearing: true },
+  { id: 'flugsvamp', count: 22, min: 0.4, max: 0.65, shadow: true, avoidsClearing: false },
+  { id: 'fagelbo', count: 5, min: 0.4, max: 0.5, shadow: true, avoidsClearing: false },
+  { id: 'fjaril', count: 14, min: 0.3, max: 0.45, shadow: false, avoidsClearing: false },
+  { id: 'nyckelpiga', count: 12, min: 0.22, max: 0.32, shadow: false, avoidsClearing: false },
 ];
 
 export class World {
