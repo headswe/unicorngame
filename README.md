@@ -417,12 +417,15 @@ under `/home`, which App Service already gives us as persistent storage, so
 there is no database and no storage account.
 
 ```sh
-az group create --name angen --location swedencentral
-az deployment group create -g angen -f infra/relay.bicep \
-  -p appName=angen-relay-<something-of-yours>
+az group create --name rg-unicorngame-prod-001 --location swedencentral
+az deployment group create -g rg-unicorngame-prod-001 -f infra/relay.bicep \
+  -p appName=app-unicorngame-prod-001 githubRepo=headswe/unicorngame
 ```
 
-It prints the `wss://…/angen` URL to use as `VITE_ANGEN_RELAY`.
+It prints the `wss://…/angen` URL to use as `VITE_ANGEN_RELAY`, plus the three
+ids the workflow needs. Note that newer App Service apps do **not** get a plain
+`<name>.azurewebsites.net` — they get a regional hostname with a random middle,
+so take the URL from the output rather than assuming it.
 
 **B1 is the smallest that works, not a preference.** WebSockets need Basic or
 above, and Free and Shared cannot do Always On — without which the app unloads
@@ -437,18 +440,44 @@ help — they keep one client on one instance, they do not gather different
 clients onto the same one.
 
 `.github/workflows/deploy-relay.yml` publishes the relay on any push that
-touches `server/`. It needs one secret, `AZURE_RELAY_PUBLISH_PROFILE`:
+touches `server/`. It signs in with **OIDC**: GitHub proves who it is with a
+token that expires in minutes and Azure hands back access, so there is no
+publish profile and no password stored in the repository, and nothing to rotate.
+
+The Bicep creates the identity and the trust, pinned to one repository *and* one
+branch — a fork, or a pull request from someone else, produces a different
+subject and is refused. The role is Website Contributor scoped to the app alone,
+so it can deploy and restart this one relay and touch nothing else.
+
+Three repository secrets, all printed by the Bicep deployment:
+
+| secret | from |
+|---|---|
+| `AZURE_CLIENT_ID` | `clientId` output |
+| `AZURE_TENANT_ID` | `tenantId` output |
+| `AZURE_SUBSCRIPTION_ID` | `subscriptionId` output |
+
+Set `APP_NAME` and `RESOURCE_GROUP` at the top of the workflow to match. The job
+installs production dependencies, checks the relay starts and answers `/healthz`
+locally, signs in, asks Azure for the app's real hostname, deploys, and then
+waits for the live URL to answer before it calls itself done — the relay is the
+one piece that can be quietly down until a child tries to play. It writes the
+`wss://` URL into the run summary.
+
+If the identity already exists — created by hand in the portal, say — add the
+federated credential and the role to it directly instead:
 
 ```sh
-az webapp deployment list-publishing-profiles \
-  -g angen -n angen-relay-<yours> --xml
-```
+az identity federated-credential create \
+  --name github-main --identity-name <your-uami> -g <your-rg> \
+  --issuer https://token.actions.githubusercontent.com \
+  --subject repo:headswe/unicorngame:ref:refs/heads/<branch> \
+  --audiences api://AzureADTokenExchange
 
-Paste the XML into the repository secret of that name, and set `APP_NAME` at the
-top of the workflow to match. The job installs production dependencies, checks
-the relay starts and answers `/healthz` locally, deploys, and then waits for the
-live URL to answer before it calls itself done — the relay is the one piece that
-can be quietly down until a child tries to play.
+az role assignment create --assignee <uami client id> \
+  --role "Website Contributor" \
+  --scope /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Web/sites/<app>
+```
 
 The game and the relay deploy independently and always will: a broken relay
 must never be able to stop the meadow loading.

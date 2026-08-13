@@ -13,6 +13,9 @@ on:
 
 permissions:
   contents: read
+  # Lets the job ask GitHub for a short-lived OIDC token, which is what it
+  # trades for Azure access. No publish profile and no stored password.
+  id-token: write
 
 # Two deploys at once would fight over the same app. Queue rather than cancel,
 # so the last push is what ends up running.
@@ -23,9 +26,9 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # Set this to the name you gave the app when you deployed infra/relay.bicep.
     env:
-      APP_NAME: angen-relay
+      APP_NAME: app-unicorngame-prod-001
+      RESOURCE_GROUP: rg-unicorngame-prod-001
 
     steps:
       - uses: actions/checkout@v4
@@ -63,11 +66,33 @@ jobs:
           echo "relay did not come up" >&2
           exit 1
 
+      # Federated credentials: GitHub proves who it is, Azure hands back a token
+      # that expires in minutes. Nothing long-lived is stored in the repository,
+      # so there is no publish profile to leak or to remember to rotate.
+      - name: Sign in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # App Service no longer gives every app a plain <name>.azurewebsites.net;
+      # newer ones get a regional hostname with a random middle. Asking Azure is
+      # the only way to be right about it.
+      - name: Find the hostname
+        id: host
+        run: |
+          HOST=$(az webapp show \
+            --name "$APP_NAME" --resource-group "$RESOURCE_GROUP" \
+            --query defaultHostName -o tsv)
+          echo "host=$HOST" >> "$GITHUB_OUTPUT"
+          echo "relay is at wss://$HOST/angen"
+
       - name: Deploy
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.APP_NAME }}
-          publish-profile: ${{ secrets.AZURE_RELAY_PUBLISH_PROFILE }}
+          resource-group-name: ${{ env.RESOURCE_GROUP }}
           package: server
 
       # The relay is the one piece that can be down without anybody noticing
@@ -75,13 +100,23 @@ jobs:
       # answered for itself.
       - name: Wait for it to answer
         run: |
+          HOST='${{ steps.host.outputs.host }}'
           for i in $(seq 1 30); do
-            if curl -sf "https://${APP_NAME}.azurewebsites.net/healthz"; then
+            if curl -sf "https://$HOST/healthz"; then
               echo
-              echo "relay is live"
+              echo "relay is live at wss://$HOST/angen"
               exit 0
             fi
             sleep 5
           done
           echo "relay did not answer after the deploy" >&2
           exit 1
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Relay" >> "$GITHUB_STEP_SUMMARY"
+          echo '`VITE_ANGEN_RELAY` should be:' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "wss://${{ steps.host.outputs.host }}/angen" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
