@@ -131,10 +131,13 @@ export function scoreSigil(drawn: Point[], template: SigilTemplate): SigilResult
 
   let best = Infinity;
   // An open shape has one beginning; a closed one may be started anywhere.
+  // Either kind may be drawn backwards — a spiral traced outward and one traced
+  // inward are the same shape, and insisting on a direction would only fail
+  // children who drew the right thing.
   const offsets = template.closed ? a.length : 1;
   for (let offset = 0; offset < offsets; offset++) {
     best = Math.min(best, meanDistance(a, b, offset, false));
-    if (template.closed) best = Math.min(best, meanDistance(a, b, offset, true));
+    best = Math.min(best, meanDistance(a, b, offset, true));
   }
 
   // Half the normalised size is about as wrong as a stroke can get while still
@@ -149,6 +152,52 @@ function circle(steps = 40): Point[] {
     const angle = (i / steps) * Math.PI * 2 - Math.PI / 2;
     return { x: 0.5 + Math.cos(angle) * 0.45, y: 0.5 + Math.sin(angle) * 0.45 };
   });
+}
+
+/** Fits an arbitrary shape into the 0..1 box the templates are drawn in. */
+function fit(points: Point[], pad = 0.05): Point[] {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const p of points) {
+    minX = Math.min(minX, p.x);
+    minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x);
+    maxY = Math.max(maxY, p.y);
+  }
+
+  // One scale for both axes, then the shorter one is centred in the box.
+  const size = Math.max(maxX - minX, maxY - minY) || 1;
+  const span = 1 - pad * 2;
+  const insetX = (size - (maxX - minX)) / 2;
+  const insetY = (size - (maxY - minY)) / 2;
+
+  return points.map((p) => ({
+    x: pad + ((p.x - minX + insetX) / size) * span,
+    y: pad + ((p.y - minY + insetY) / size) * span,
+  }));
+}
+
+/**
+ * A heart, starting at the notch between the lobes and going clockwise.
+ *
+ * Chosen over the more obvious egg shape because an egg is barely
+ * distinguishable from the flower spell's circle, and over a spiral because a
+ * spiral's score depends on how many turns you draw — and a six-year-old does
+ * not count turns.
+ */
+function heart(steps = 64): Point[] {
+  return fit(
+    Array.from({ length: steps + 1 }, (_, i) => {
+      const t = (i / steps) * Math.PI * 2;
+      return {
+        x: 16 * Math.sin(t) ** 3,
+        // Screen y grows downward, so the classic curve is flipped.
+        y: -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)),
+      };
+    }),
+  );
 }
 
 /** Straight edges get intermediate points so resampling follows the corners. */
@@ -188,5 +237,11 @@ export const SIGILS: Record<string, SigilTemplate> = {
     points: circle(),
     closed: true,
     threshold: 0.68,
+  },
+  heart: {
+    id: 'heart',
+    points: heart(),
+    closed: true,
+    threshold: 0.72,
   },
 };

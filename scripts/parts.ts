@@ -399,6 +399,38 @@ export const PARTS: PartSpec[] = [
     1.4,
   ),
 
+  /**
+   * The hatching egg. Drawn near-white like the unicorn parts, because it is
+   * tinted with the coat colour of the foal inside and takes that foal's coat
+   * pattern through the same shader — the egg is a preview of what is coming.
+   */
+  {
+    id: 'agg',
+    kind: 'prop',
+    label: 'Ägg',
+    worldHeight: 0.9,
+    prompt:
+      `${STYLE}. A single large smooth egg standing upright on its blunt end, ` +
+      `seen exactly from the side: a clean unbroken oval, wider at the bottom ` +
+      `and narrower at the top, with a completely plain smooth surface — no ` +
+      `speckles, no spots, no cracks, no patterns and no markings of any ` +
+      `kind. ${TINTABLE} ${ISOLATED}`,
+  },
+  {
+    id: 'agg_spricka',
+    kind: 'prop',
+    label: 'Sprucket ägg',
+    worldHeight: 0.9,
+    prompt:
+      `${STYLE}. A single large egg standing upright on its blunt end, seen ` +
+      `exactly from the side, exactly the same oval shape and size as an ` +
+      `unbroken egg but with one jagged zig-zag crack running across the ` +
+      `upper third and two shorter cracks branching down the side. The shell ` +
+      `is still whole and closed — nothing is coming out and there is no hole ` +
+      `— and the surface is otherwise completely plain with no speckles or ` +
+      `patterns. ${TINTABLE} ${ISOLATED}`,
+  },
+
   // --- sky ------------------------------------------------------------------
   {
     id: 'moln_stort',

@@ -26,10 +26,14 @@ const rendered = await page.evaluate(async () => {
   const names = [
     'step', 'plop', 'sparkle', 'drop', 'munch', 'pickup',
     'magicOpen', 'cast', 'fizzle', 'rainSpell', 'bloomSpell',
+    'eggSpell', 'crack', 'hatch',
   ];
 
   /** Longer than the tail of each sound, so nothing is cut off. */
-  const seconds = { cast: 3.2, rainSpell: 3.4, bloomSpell: 3.0, magicOpen: 2.4, sparkle: 2.2 };
+  const seconds = {
+    cast: 3.2, rainSpell: 3.4, bloomSpell: 3.0, magicOpen: 2.4, sparkle: 2.2,
+    eggSpell: 3.0, hatch: 2.6,
+  };
 
   const out = [];
   for (const name of names) {

@@ -14,14 +14,15 @@ import { makeRng, type Rng } from '../engine/rng.ts';
 import { createSprite, type Sprite } from '../engine/sprite.ts';
 import { depthOrder, PART_ORDER, projectY } from '../engine/view.ts';
 import { Backdrop } from './backdrop.ts';
+import { EggNest, HATCH_TIME } from './eggs.ts';
 import { createGround } from './ground.ts';
 import { WanderingUnicorn } from './npc.ts';
-import type { WorldBounds } from './player.ts';
+import { clamp, type WorldBounds } from './player.ts';
 import { shadowTexture } from './shadow.ts';
 import { PoopField } from './poop.ts';
 import { TreatField, EAT_RADIUS } from './treats.ts';
 import { Unicorn } from './unicorn.ts';
-import { randomVariant } from './variant.ts';
+import { randomSeed, randomVariant, type UnicornVariant } from './variant.ts';
 
 /** Where the unicorns are allowed to walk. */
 export const WORLD_BOUNDS: WorldBounds = {
@@ -102,6 +103,7 @@ export class World {
   readonly residents: WanderingUnicorn[] = [];
   readonly poop: PoopField;
   readonly treats: TreatField;
+  readonly eggs: EggNest;
   /** Flowers conjured by a spell, kept so they can be animated in. */
   private readonly blooms: Array<{ sprite: Sprite; age: number }> = [];
 
@@ -109,6 +111,8 @@ export class World {
   onPoop: (() => void) | null = null;
   /** Called when any unicorn eats a strawberry. */
   onEat: (() => void) | null = null;
+  /** Called with the newcomer's name when an egg opens. */
+  onHatch: ((variant: UnicornVariant) => void) | null = null;
 
   private readonly decor: THREE.Group = new THREE.Group();
   private readonly poopTimers: number[] = [];
@@ -139,6 +143,9 @@ export class World {
     this.scene.add(this.poop.group);
     this.treats = new TreatField(assets);
     this.scene.add(this.treats.group);
+    this.eggs = new EggNest(assets);
+    this.eggs.onHatch = (variant, x, y) => this.hatch(variant, x, y);
+    this.scene.add(this.eggs.group);
     this.placeShovel();
     this.placeLetterTable();
 
@@ -206,6 +213,31 @@ export class World {
     }
   }
 
+  /**
+   * Adds a unicorn to the herd. Residents and their poop clocks are parallel
+   * arrays, so joining the meadow has to go through one place or the two will
+   * drift apart.
+   */
+  private addResident(
+    unicorn: Unicorn,
+    wanderSeed: string,
+    roam: number,
+    firstPoopIn: number,
+  ): void {
+    this.scene.add(unicorn.group);
+    this.residents.push(
+      new WanderingUnicorn(
+        unicorn,
+        makeRng(wanderSeed),
+        unicorn.x,
+        unicorn.y,
+        roam,
+        WORLD_BOUNDS,
+      ),
+    );
+    this.poopTimers.push(firstPoopIn);
+  }
+
   private populate(rng: Rng): void {
     const count = 18;
     for (let i = 0; i < count; i++) {
@@ -223,14 +255,55 @@ export class World {
       unicorn.x = x;
       unicorn.y = y;
       unicorn.facing = rng.chance(0.5) ? 1 : -1;
-      this.scene.add(unicorn.group);
-
-      this.residents.push(
-        new WanderingUnicorn(unicorn, makeRng(`vandra-${i}`), x, y, rng.range(3, 9), WORLD_BOUNDS),
-      );
       // Staggered, so the meadow does not fill up all at once at the start.
-      this.poopTimers.push(rng.range(4, POOP_INTERVAL.max));
+      this.addResident(unicorn, `vandra-${i}`, rng.range(3, 9), rng.range(4, POOP_INTERVAL.max));
     }
+  }
+
+  /**
+   * Conjures an egg beside a point and returns the foal that is inside it.
+   *
+   * The foal is rolled here rather than at hatching time, which is the whole
+   * trick: the shell can then be painted in its coat colour and coat pattern,
+   * so you can see what is coming while you wait.
+   */
+  layEgg(x: number, y: number, rng: Rng): UnicornVariant | null {
+    if (!this.eggs.available) return null;
+
+    const variant = randomVariant(this.assets, `agg-${randomSeed()}`);
+    // Whatever the roll said, something that just hatched is a foal.
+    variant.scale = Math.min(variant.scale, 0.78);
+
+    // Beside the caster rather than under them, and never outside the fence.
+    const angle = rng.range(0, Math.PI * 2);
+    const distance = rng.range(1.7, 2.7);
+    const eggX = clamp(x + Math.cos(angle) * distance, WORLD_BOUNDS.minX, WORLD_BOUNDS.maxX);
+    const eggY = clamp(
+      y + Math.sin(angle) * distance * 0.8,
+      WORLD_BOUNDS.minY,
+      WORLD_BOUNDS.maxY,
+    );
+
+    const hatchIn = rng.range(HATCH_TIME.min, HATCH_TIME.max);
+    return this.eggs.lay(eggX, eggY, variant, hatchIn) ? variant : null;
+  }
+
+  /** An egg has opened: the foal joins the herd where the shell was. */
+  private hatch(variant: UnicornVariant, x: number, y: number): void {
+    const unicorn = new Unicorn(variant, this.assets);
+    unicorn.x = x;
+    unicorn.y = y;
+    unicorn.facing = Math.random() < 0.5 ? 1 : -1;
+    // Arrives mid-bounce, which is the first thing you see it do.
+    unicorn.hop();
+    this.addResident(
+      unicorn,
+      `vandra-${variant.seed}`,
+      // Newborns keep close to where they hatched.
+      4,
+      randomBetween(POOP_INTERVAL.min, POOP_INTERVAL.max),
+    );
+    this.onHatch?.(variant);
   }
 
   /** Casts strawberry rain around a point. */
@@ -330,6 +403,9 @@ export class World {
     this.treats.update(dt);
     this.feedResidents();
     this.growBlooms(dt);
+    // Last, because a hatching egg adds to `residents` and nothing above may
+    // still be part-way through iterating it.
+    this.eggs.update(dt);
   }
 
   /** Unicorns notice strawberries nearby, walk over, and eat them. */

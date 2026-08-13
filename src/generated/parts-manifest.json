@@ -451,6 +451,28 @@
     "tintable": false
   },
   {
+    "id": "agg",
+    "kind": "prop",
+    "label": "Ägg",
+    "url": "assets/parts/agg.png",
+    "width": 378,
+    "height": 512,
+    "aspect": 0.73828125,
+    "worldHeight": 0.9,
+    "tintable": true
+  },
+  {
+    "id": "agg_spricka",
+    "kind": "prop",
+    "label": "Sprucket ägg",
+    "url": "assets/parts/agg_spricka.png",
+    "width": 364,
+    "height": 512,
+    "aspect": 0.7109375,
+    "worldHeight": 0.9,
+    "tintable": true
+  },
+  {
     "id": "moln_stort",
     "kind": "cloud",
     "label": "Moln",

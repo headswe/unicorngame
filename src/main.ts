@@ -160,6 +160,11 @@ async function start(): Promise<void> {
   world.onPoop = () => sfx.plop();
   world.onEat = () => sfx.munch();
   world.treats.onLand = () => sfx.drop();
+  world.eggs.onCrack = () => sfx.crack();
+  world.onHatch = (born) => {
+    sfx.hatch();
+    hud.announce(`${born.name} kläcktes! Säg hej.`);
+  };
 
   // --- spellcasting ---------------------------------------------------------
   const spellRng = makeRng(randomSeed());
@@ -175,12 +180,16 @@ async function start(): Promise<void> {
     onCast: (spell) => {
       // The cast chord has already played; this is the spell's own voice.
       if (spell.sound === 'rain') sfx.rainSpell();
+      else if (spell.sound === 'egg') sfx.eggSpell();
       else sfx.bloomSpell();
 
       if (spell.id === 'jordgubbsregn') {
         world.rainStrawberries(player.x, player.y, spellRng);
       } else if (spell.id === 'blomstercirkel') {
         world.bloomFlowers(player.x, player.y, spellRng);
+      } else if (spell.id === 'trollagg') {
+        const coming = world.layEgg(player.x, player.y, spellRng);
+        if (coming) hud.announce('Ett ägg! Vänta hos det tills det kläcks.', 8);
       }
     },
   });

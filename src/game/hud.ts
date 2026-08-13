@@ -27,6 +27,8 @@ export class Hud {
   private readonly tally: HTMLSpanElement;
   private readonly tallyCount: HTMLSpanElement;
   private hint: string | null = null;
+  /** While `performance.now()` is below this, ambient hints are held off. */
+  private announceUntil = 0;
 
   constructor(parent: HTMLElement, callbacks: HudCallbacks, options: HudOptions) {
     this.root = document.createElement('div');
@@ -113,8 +115,26 @@ export class Hud {
     this.tally.classList.add('pop');
   }
 
-  /** Replaces the hint line. Passing null restores the controls reminder. */
+  /**
+   * Replaces the hint line. Passing null restores the controls reminder.
+   *
+   * These are ambient: the game re-asserts them every frame from where the
+   * player is standing, so any one-off message would be overwritten within a
+   * frame. An announcement holds the line against them for a few seconds.
+   */
   setHint(text: string | null): void {
+    if (performance.now() < this.announceUntil) return;
+    this.paintHint(text);
+  }
+
+  /** A one-off message — something just happened — that outranks the hints. */
+  announce(text: string, seconds = 6): void {
+    this.announceUntil = 0;
+    this.paintHint(text);
+    this.announceUntil = performance.now() + seconds * 1000;
+  }
+
+  private paintHint(text: string | null): void {
     const el = this.root.querySelector<HTMLParagraphElement>('.hud-hint');
     if (!el) return;
     if (text === this.hint) return;

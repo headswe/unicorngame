@@ -294,6 +294,56 @@ export class Sfx {
     }
   }
 
+  /**
+   * The egg arriving: a low swell that resolves upward, like something being
+   * set down gently and then deciding to exist.
+   */
+  eggSpell(): void {
+    this.noise({ duration: 0.9, gain: 0.06, from: 240, to: 1800, q: 1.1, send: 0.6 });
+    // A rising major triad — the sound of a promise rather than a reward.
+    [261.6, 329.6, 392.0, 523.3].forEach((frequency, i) => {
+      this.tone(frequency, {
+        duration: 0.7,
+        gain: 0.11,
+        type: 'triangle',
+        delay: 0.08 + i * 0.1,
+        send: 0.5,
+        vibrato: 5,
+      });
+    });
+    this.tone(1046.5, { duration: 1.2, gain: 0.045, delay: 0.5, send: 0.85, vibrato: 12 });
+  }
+
+  /** The shell cracking: two dry little ticks, no music. */
+  crack(): void {
+    // Short and narrow-band, so these need a lot of gain to reach the same
+    // apparent loudness as the longer sounds.
+    this.noise({ duration: 0.05, gain: 0.34, from: 2600, to: 900, q: 3 });
+    this.noise({ duration: 0.06, gain: 0.28, from: 3200, to: 1100, q: 3, delay: 0.13 });
+  }
+
+  /**
+   * The egg opening. The one moment in the game worth a fanfare: the shell
+   * bursts, then a bright little arrival tune over the reverb.
+   */
+  hatch(): void {
+    this.noise({ duration: 0.35, gain: 0.12, from: 1800, to: 5000, q: 1, send: 0.7 });
+    // C6 E6 G6 A6 C7 — the same major shapes as the other rewards, an octave up
+    // so it sits above everything else happening in the meadow.
+    [1046.5, 1318.5, 1568.0, 1760.0, 2093.0].forEach((frequency, i) => {
+      this.tone(frequency, {
+        duration: 0.42,
+        gain: 0.13,
+        delay: i * 0.07,
+        send: 0.5,
+        vibrato: 8,
+      });
+    });
+    // A soft low note underneath, so the fanfare has a floor to stand on.
+    this.tone(523.3, { duration: 0.9, gain: 0.08, type: 'triangle', delay: 0.1, send: 0.4 });
+    this.tone(3136, { duration: 1.2, gain: 0.03, delay: 0.36, send: 0.9, vibrato: 16 });
+  }
+
   /** Flower circle: a harp run opening upward, then settling. */
   bloomSpell(): void {
     // A pentatonic sweep up two octaves, quick enough to read as one gesture.

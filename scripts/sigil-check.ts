@@ -45,6 +45,7 @@ function rotateAndReverse(points: Point[]): Point[] {
 
 const triangle = scale(SIGILS.triangle!.points);
 const circle = scale(SIGILS.circle!.points);
+const heart = scale(SIGILS.heart!.points);
 
 const cases: Array<{ name: string; stroke: Point[]; template: string; expect: boolean }> = [
   { name: 'triangle, traced exactly', stroke: triangle, template: 'triangle', expect: true },
@@ -63,6 +64,20 @@ const cases: Array<{ name: string; stroke: Point[]; template: string; expect: bo
   { name: 'circle, squashed oval', stroke: circle.map((p) => ({ x: p.x, y: p.y * 0.72 })), template: 'circle', expect: true },
   { name: 'triangle drawn, circle wanted', stroke: triangle, template: 'circle', expect: false },
   { name: 'straight line, circle wanted', stroke: line({ x: 20, y: 150 }, { x: 280, y: 150 }), template: 'circle', expect: false },
+
+  { name: 'heart, traced exactly', stroke: heart, template: 'heart', expect: true },
+  { name: 'heart, a bit wobbly', stroke: sloppy(heart, 14, 17), template: 'heart', expect: true },
+  { name: 'heart, drawn by a small child', stroke: sloppy(heart, 32, 19), template: 'heart', expect: true },
+  { name: 'heart, started elsewhere + backwards', stroke: rotateAndReverse(heart), template: 'heart', expect: true },
+  { name: 'heart, tall and narrow', stroke: heart.map((p) => ({ x: p.x * 0.78, y: p.y })), template: 'heart', expect: true },
+  { name: 'circle drawn, heart wanted', stroke: circle, template: 'heart', expect: false },
+  { name: 'triangle drawn, heart wanted', stroke: triangle, template: 'heart', expect: false },
+  { name: 'straight line, heart wanted', stroke: line({ x: 20, y: 150 }, { x: 280, y: 150 }), template: 'heart', expect: false },
+  // Deliberate: a heart scores 0.69 against the circle, just over its bar. The
+  // spell is chosen before the shape is drawn, so the only consequence is that
+  // a child who picks the flower spell and draws a heart still gets flowers —
+  // which is the forgiving outcome this recogniser is tuned for.
+  { name: 'heart drawn, circle wanted (lenient)', stroke: heart, template: 'circle', expect: true },
 ];
 
 let failures = 0;

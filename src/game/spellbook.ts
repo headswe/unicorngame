@@ -19,7 +19,7 @@ export interface Spell {
   /** Colour of the trail while tracing, and of the burst on success. */
   colour: string;
   /** Which signature sound plays when it lands. */
-  sound: 'rain' | 'bloom';
+  sound: 'rain' | 'bloom' | 'egg';
 }
 
 export const SPELLS: Spell[] = [
@@ -42,5 +42,16 @@ export const SPELLS: Spell[] = [
     sigil: SIGILS.circle!,
     colour: '#ff9ec4',
     sound: 'bloom',
+  },
+  {
+    id: 'trollagg',
+    name: 'Trollägg',
+    description: 'Ett ägg dyker upp. Vänta — en liten enhörning kläcks!',
+    icon: '🥚',
+    // A heart, for a new little one. It is also the only one of the three a
+    // child is likely to have drawn a hundred times already.
+    sigil: SIGILS.heart!,
+    colour: '#8ad6b8',
+    sound: 'egg',
   },
 ];
