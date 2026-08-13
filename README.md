@@ -274,12 +274,110 @@ first tap or key press.
 The file is downloaded in full, so keep an eye on its size — it is currently the
 largest thing in the build.
 
+## Playing together
+
+Two children on two machines see each other's unicorns walking around the same
+meadow. One lobby, no room codes, no accounts, no chat, and no typed text
+anywhere — names come from the game's own list.
+
+The whole thing is affordable because **the meadow is generated, not stored**.
+Every browser builds the identical field from the seed `angen-1` — same trees,
+same eighteen residents, same colours — so none of it is ever sent. That leaves
+two things worth putting on the wire:
+
+- **where each child's own unicorn is**, ten times a second while walking and
+  twice a second while standing still, eased on the receiving end so it reads as
+  a pony walking rather than a pony teleporting;
+- **the spells they cast**, replayed from a seed so a strawberry shower lands in
+  the same places on both screens. The egg is the exception: it sends its foal
+  outright rather than a seed, because two children watching one egg must not
+  see different ponies come out of it.
+
+Deliberately *not* synchronised: the wandering residents, the poop they leave,
+and who eats which strawberry. Keeping those in lockstep would need a fixed
+timestep and eighteen more moving things on the wire, to fix a difference no
+child will ever notice.
+
+There is no host and no server-side authority — every browser runs its own
+meadow and simply draws the others walking through it. Nothing in `src/net/` can
+break single-player: with no relay reachable, the game just has nobody else in
+it.
+
+**Discovery repairs itself.** An introduction is a single `hello`, and on home
+wifi one will eventually be lost, stranding a child in an empty meadow. So a
+pose from an unknown peer is treated as evidence of a missed handshake and
+answered with an ask-for-reply `hello`. Worth keeping if you touch this: it is
+the difference between "it works on my desk" and "it works on a Sunday".
+
+### Trying it with no server at all
+
+`src/net/transport.ts` has two implementations behind one interface. With no
+relay configured the game uses a `BroadcastChannel`, which joins up two tabs on
+the same machine — that is how all of this was built and tested, and it means
+the multiplayer code path is never cold even when you are working offline. Open
+the game in two tabs and they will find each other.
+
+### The relay
+
+`server/` is a plain Node WebSocket server, about eighty lines, with one
+dependency. It has exactly one job: whatever a browser sends, everyone else
+gets. It never parses a message, never holds game state and never decides
+anything, which is why it is short and why it cannot be the thing that breaks
+the game. Nothing in it is Azure-specific.
+
+```sh
+cd server && npm install
+PORT=8080 npm start          # ws://localhost:8080/angen
+```
+
+Point the game at it by setting `VITE_ANGEN_RELAY` at build time:
+
+```sh
+VITE_ANGEN_RELAY=wss://your-relay.azurewebsites.net/angen npm run build
+```
+
+It must be `wss://` in production — an HTTPS page cannot open a plain `ws://`
+socket.
+
+### Hosting it on Azure App Service
+
+App Service is the boring choice, which is what you want for something children
+rely on when nobody is around to restart it. WebSockets are first-class from
+**Basic (B1)** upward — Free and Shared cap at five connections and cannot do
+Always On — and Basic allows 350 concurrent WebSocket connections per instance,
+which is far more than one family needs.
+
+```sh
+cd server
+az webapp up --runtime "NODE:20-lts" --sku B1 --name <your-relay-name>
+az webapp config set --name <your-relay-name> --web-sockets-enabled true
+az webapp config set --name <your-relay-name> --always-on true
+```
+
+Two settings matter and both are off by default: **WebSockets** and **Always
+On**. The relay listens on `process.env.PORT`, which App Service provides.
+
+**Do not scale out.** The lobby lives in one process's memory, so a second
+instance is a second meadow that cannot see the first. Sticky sessions do not
+help — they keep one client on one instance, they do not gather different
+clients onto the same one.
+
+App Service recycles workers for platform updates, so the socket *will* drop
+during a long session even with Always On. `SocketTransport` reconnects with a
+backoff and the session re-announces itself. Because the meadow is generated
+from a seed rather than stored, coming back costs a second of reconnecting and
+nothing else — the field rebuilds identically.
+
 ## Deploying
 
 `.github/workflows/deploy.yml` builds and publishes to GitHub Pages on every
 push to the default branch. `base` is `'./'` in the Vite config, so the build is
 path-independent — it works at a repo subpath, at a domain root, or straight off
 the filesystem, with no rebuild.
+
+To turn on multiplayer for the published game, set `VITE_ANGEN_RELAY` as a
+repository variable and pass it through to the build step in that workflow.
+Without it the deployed game is single-player, which is a safe default.
 
 ## Not built yet
 
