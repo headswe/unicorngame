@@ -128,6 +128,12 @@
       .hud-spell:hover {
         background: #ffc2e6;
       }
+      .hud-abc {
+        background: #ffe9c9;
+      }
+      .hud-abc:hover {
+        background: #ffdca3;
+      }
       .hud-icon.off {
         background: #e6e0da;
         opacity: 0.75;
@@ -476,6 +482,182 @@
         .wardrobe-canvas {
           width: 60vw;
           height: 34vh;
+        }
+      }
+      .spelling {
+        position: fixed;
+        inset: 0;
+        z-index: 22;
+        display: grid;
+        place-items: center;
+        background: rgba(40, 62, 54, 0.55);
+        backdrop-filter: blur(3px);
+        padding: 0.6rem;
+      }
+      .spelling[hidden] {
+        display: none;
+      }
+      .spelling-panel {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.7rem;
+        background: linear-gradient(#fffaf2, #f2f7ef);
+        border: 4px solid var(--ink);
+        border-radius: 1.6rem;
+        box-shadow: 0 10px 0 rgba(74, 51, 39, 0.22);
+        padding: 1rem clamp(0.8rem, 3vw, 2rem) 1.2rem;
+        max-width: min(96vw, 46rem);
+        max-height: 96vh;
+        overflow-y: auto;
+      }
+      .spelling-close {
+        position: absolute;
+        top: 0.6rem;
+        right: 0.6rem;
+        width: 2.6rem;
+        height: 2.6rem;
+        font: inherit;
+        font-size: 1.1rem;
+        color: var(--ink);
+        background: #ffd9e0;
+        border: 3px solid var(--ink);
+        border-radius: 50%;
+        cursor: pointer;
+      }
+      .spelling-levels {
+        display: flex;
+        gap: 0.4rem;
+      }
+      .spelling-level {
+        font: inherit;
+        font-size: 0.8rem;
+        font-weight: bold;
+        color: var(--ink);
+        display: grid;
+        justify-items: center;
+        padding: 0.35rem 0.7rem;
+        border: 3px solid var(--ink);
+        border-radius: 0.9rem;
+        background: #fff;
+        cursor: pointer;
+      }
+      .spelling-level span:first-child {
+        font-size: 1.1rem;
+        line-height: 1.2;
+      }
+      .spelling-level.active {
+        background: #ffe07a;
+      }
+      .spelling-picture {
+        width: clamp(6rem, 22vw, 9rem);
+        height: clamp(6rem, 22vw, 9rem);
+        object-fit: contain;
+        background: radial-gradient(circle at 50% 60%, #dff0e4, #cfe9dd);
+        border: 3px solid var(--ink);
+        border-radius: 1.1rem;
+        padding: 0.4rem;
+      }
+      .spelling-slots,
+      .spelling-tray {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        justify-content: center;
+        min-height: 3.6rem;
+      }
+      .spelling-tray {
+        padding: 0.5rem;
+        border: 3px dashed rgba(74, 51, 39, 0.28);
+        border-radius: 1rem;
+        min-width: min(80vw, 24rem);
+      }
+      .spelling-slot {
+        min-width: 3rem;
+        height: 3.4rem;
+        display: grid;
+        place-items: center;
+        padding: 0 0.15rem;
+        border: 3px dashed rgba(74, 51, 39, 0.35);
+        border-radius: 0.7rem;
+        background: rgba(255, 255, 255, 0.6);
+      }
+      .spelling-slot.given {
+        border-style: solid;
+        background: #eef4ec;
+      }
+      .spelling-tile {
+        font: inherit;
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: var(--ink);
+        min-width: 2.6rem;
+        height: 3rem;
+        padding: 0 0.5rem;
+        display: grid;
+        place-items: center;
+        background: #ffe07a;
+        border: 3px solid var(--ink);
+        border-radius: 0.6rem;
+        cursor: grab;
+        touch-action: none;
+        user-select: none;
+      }
+      .spelling-tile.fixed {
+        background: #cfe9dd;
+        cursor: default;
+      }
+      .spelling-tile.dragging {
+        cursor: grabbing;
+        z-index: 5;
+        position: relative;
+        box-shadow: 0 6px 12px rgba(74, 51, 39, 0.3);
+      }
+      .spelling-gap {
+        min-width: 2.6rem;
+        height: 3rem;
+        border-radius: 0.6rem;
+        background: rgba(74, 51, 39, 0.06);
+      }
+      .spelling-slots.shake {
+        animation: spell-shake 0.4s ease;
+      }
+      .spelling-slots.correct .spelling-tile {
+        background: #8fe0c0;
+      }
+      .spelling-slots.correct {
+        animation: tally-pop 0.5s ease;
+      }
+      .spelling-status {
+        margin: 0;
+        min-height: 1.4rem;
+        font-weight: bold;
+        text-align: center;
+      }
+      .spelling-footer {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+      }
+      .spelling-score {
+        font-size: 1.2rem;
+        font-weight: bold;
+      }
+      .spelling-next {
+        font: inherit;
+        font-weight: bold;
+        color: var(--ink);
+        padding: 0.5rem 1.1rem;
+        border: 3px solid var(--ink);
+        border-radius: 999px;
+        background: #8fe0c0;
+        cursor: pointer;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .spelling-slots.shake,
+        .spelling-slots.correct {
+          animation: none;
         }
       }
       #loading {

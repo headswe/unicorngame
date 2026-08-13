@@ -13,6 +13,7 @@ import { Sfx } from './engine/sfx.ts';
 import { MeadowCamera, projectY, type ViewportSize } from './engine/view.ts';
 import { Hud } from './game/hud.ts';
 import { SpellUi } from './game/spell-ui.ts';
+import { Spelling } from './game/spelling.ts';
 import { Wardrobe } from './game/wardrobe.ts';
 import { PlayerController, clamp } from './game/player.ts';
 import { Unicorn } from './game/unicorn.ts';
@@ -108,11 +109,13 @@ async function start(): Promise<void> {
 
   let openSpellbook = (): void => undefined;
   let openWardrobe = (): void => undefined;
+  let openSpelling = (): void => undefined;
 
   const hud = new Hud(container, {
     onToggleMusic: () => music.toggle(),
     onCastSpell: () => openSpellbook(),
     onOpenWardrobe: () => openWardrobe(),
+    onSpelling: () => openSpelling(),
   }, { hasMusic: music.available, musicOn: music.enabled });
   hud.setName(variant.name);
 
@@ -173,6 +176,22 @@ async function start(): Promise<void> {
     },
   });
   openSpellbook = () => spellUi.show();
+
+  // --- spelling game --------------------------------------------------------
+  const spelling = new Spelling(container, assets, {
+    onClose: () => undefined,
+    onSound: (kind) => {
+      if (kind === 'open') sfx.magicOpen();
+      else if (kind === 'pick') sfx.pickup();
+      else if (kind === 'place') sfx.drop();
+      else if (kind === 'right') sfx.cast();
+      else sfx.fizzle();
+    },
+  });
+  openSpelling = () => {
+    controller.stop();
+    spelling.show();
+  };
 
   // The player's own unicorn is a pony like any other. Rarer, so it reads as a
   // surprise rather than a nuisance while you are trying to tidy up.
@@ -290,7 +309,9 @@ async function start(): Promise<void> {
 
   if (import.meta.env.DEV) {
     // Handy for poking at the meadow from the console while tuning.
-    Object.assign(window, { angen: { world, camera, assets, music, sfx, input, get player() { return player; } } });
+    Object.assign(window, {
+      angen: { world, camera, assets, music, sfx, input, spelling, wardrobe, get player() { return player; } },
+    });
   }
 
   loading?.classList.add('done');
@@ -305,7 +326,7 @@ async function start(): Promise<void> {
 
     wardrobe.tick();
 
-    if (spellUi.open || wardrobe.open) {
+    if (spellUi.open || wardrobe.open || spelling.open) {
       // The overlay swallows pointers, but not the keyboard, so the unicorn is
       // held still explicitly while a sigil is being drawn.
       player.update(dt, false);

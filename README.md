@@ -26,6 +26,7 @@ play — only to draw new parts.
 | Walk into the shovel | Pick it up |
 | Tap a poop nearby (or Space) | Shovel it up |
 | **✨** | Open the spellbook |
+| **🔤** | Open the spelling game |
 
 Both schemes are live at once, so a laptop and a tablet behave the same.
 
@@ -227,6 +228,35 @@ above that.
 
 Adding a spell is an entry in `src/game/spellbook.ts` plus a shape in
 `sigil.ts`; the overlay and the recogniser need no changes.
+
+## The spelling game
+
+A picture, a row of slots, and pieces to put in them. Three levels of the same
+puzzle, differing only in how big the pieces are:
+
+| | |
+|---|---|
+| **Lätt** | `jordgubbe` → drag **jord** and **gubbe** |
+| **Mellan** | about half the letters are given; drag the missing few |
+| **Svår** | every letter, shuffled |
+
+Words live in `src/game/words.ts`, each pointing at a sprite the meadow already
+uses, so the picture is something the child has walked past. `chunks` is how the
+easiest level breaks the word up — the halves of a compound (jord + gubbe) where
+there is one, plain syllables (spa + de) otherwise. A one-chunk word makes a
+one-tile puzzle, so those are skipped on the easiest level and still appear on
+the letter levels.
+
+Two ways to place a piece, both always live: dragging is the point, but it is
+genuinely hard for a small hand on a tablet, so a plain tap drops a piece into
+the first empty slot and a tap on a placed piece takes it back out.
+
+Checking waits until every slot is full, then **keeps the letters that were
+right and returns only the wrong ones**. Spelling `buske` as "besuk" leaves the
+b and the s standing and hands back the rest — partial credit is visible, which
+is how a child works out what they got wrong without being shown the answer.
+
+The chosen level is remembered between visits.
 
 ## Music
 
