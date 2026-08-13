@@ -444,10 +444,24 @@ touches `server/`. It signs in with **OIDC**: GitHub proves who it is with a
 token that expires in minutes and Azure hands back access, so there is no
 publish profile and no password stored in the repository, and nothing to rotate.
 
-The Bicep creates the identity and the trust, pinned to one repository *and* one
-branch — a fork, or a pull request from someone else, produces a different
-subject and is refused. The role is Website Contributor scoped to the app alone,
-so it can deploy and restart this one relay and touch nothing else.
+The Bicep creates the identity and the trust. `githubSubject` decides which runs
+may use it, and that claim is the entire check — a run that does not match it
+exactly gets nothing, so a typo shows up as "access denied" rather than as a
+typo. It defaults to a single branch because a template should start narrow;
+widening it is a fair choice for a private repository, since the identity can
+only ever deploy this one app. The role is Website Contributor scoped to the app
+alone, so it can deploy and restart this relay and touch nothing else.
+
+If the login step fails, this is almost always why. Check what is actually there:
+
+```sh
+az identity federated-credential list -g <rg> --identity-name <uami> \
+  --query "[].{name:name, subject:subject}" -o table
+```
+
+A push to a branch sends `repo:owner/repo:ref:refs/heads/<branch>`. If the
+credential was set up against an **environment** instead, the job needs a
+matching `environment:` line or the claims will never line up.
 
 Three repository secrets, all printed by the Bicep deployment:
 

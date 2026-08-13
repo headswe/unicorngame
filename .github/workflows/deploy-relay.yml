@@ -69,6 +69,12 @@ jobs:
       # Federated credentials: GitHub proves who it is, Azure hands back a token
       # that expires in minutes. Nothing long-lived is stored in the repository,
       # so there is no publish profile to leak or to remember to rotate.
+      #
+      # If this step fails with something about the subject or the audience, the
+      # federated credential on the Azure side does not match what this run
+      # sends. A run on a branch sends `repo:<owner>/<repo>:ref:refs/heads/<branch>`;
+      # if the credential was set up against an *environment* instead, add
+      # `environment: <name>` to this job so the claim matches.
       - name: Sign in to Azure
         uses: azure/login@v2
         with:

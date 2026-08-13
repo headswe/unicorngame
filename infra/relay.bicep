@@ -11,7 +11,7 @@
 //
 // It also creates the identity GitHub Actions signs in with, so there is no
 // publish profile or password anywhere: GitHub proves who it is with a
-// short-lived token and Azure trusts it for this repository and branch only.
+// short-lived token and Azure trusts it for whatever `githubSubject` allows.
 
 @description('Name of the web app. Becomes <appName>.azurewebsites.net, so it must be globally unique.')
 @minLength(3)
@@ -27,8 +27,28 @@ param timezone string = 'Europe/Stockholm'
 @description('owner/repo allowed to deploy this. Anything else GitHub sends is refused.')
 param githubRepo string = 'headswe/unicorngame'
 
-@description('The only branch allowed to deploy. A pull request from a fork cannot use this.')
-param githubBranch string = 'claude/unicorn-game-build-88xv4l'
+@description('''
+Which GitHub runs may assume this identity, as an OIDC subject claim.
+
+Whatever is set here has to match, exactly, the claim a workflow run sends —
+that is the whole of the check, so a typo reads as "access denied" rather than
+as a typo. The usual shapes:
+
+  repo:owner/repo:ref:refs/heads/<branch>   a single branch
+  repo:owner/repo:environment:<name>        a named environment (the job then
+                                            needs a matching `environment:`)
+  repo:owner/repo:pull_request              pull requests
+  repo:owner/repo:ref:refs/tags/<tag>       a single tag
+
+Defaulted to one branch because a template should start narrow. Widening it is
+a fair choice for a private repository nobody else can push to — the identity
+can only deploy this one app either way — but it should be a decision rather
+than an accident.
+''')
+param githubSubject string = 'repo:${githubRepo}:ref:refs/heads/claude/unicorn-game-build-88xv4l'
+
+@description('Name for the federated credential. Only has to be unique on the identity.')
+param githubCredentialName string = 'github-relay'
 
 @description('Node runtime for the relay. Only needs ESM and `ws`, so any current LTS is fine.')
 param nodeVersion string = 'NODE|20-lts'
@@ -116,12 +136,12 @@ resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' 
 
 resource federated 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = {
   parent: identity
-  name: 'github-${githubBranch}'
+  name: githubCredentialName
   properties: {
     issuer: 'https://token.actions.githubusercontent.com'
-    // Pinned to one repository and one branch. A fork, or a pull request from
-    // someone else, produces a different subject and is refused.
-    subject: 'repo:${githubRepo}:ref:refs/heads/${githubBranch}'
+    // The subject is the entire check: a run whose claim does not match this
+    // exactly gets nothing. See the parameter for the shapes it can take.
+    subject: githubSubject
     audiences: ['api://AzureADTokenExchange']
   }
 }
