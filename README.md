@@ -26,7 +26,7 @@ play — only to draw new parts.
 | Walk into the shovel | Pick it up |
 | Tap a poop nearby (or Space) | Shovel it up |
 | **✨** | Open the spellbook |
-| **🔤** | Open the spelling game |
+| Walk to the letter table | Play the spelling game |
 
 Both schemes are live at once, so a laptop and a tablet behave the same.
 
@@ -281,8 +281,8 @@ meadow. One lobby, no room codes, no accounts, no chat, and no typed text
 anywhere — names come from the game's own list.
 
 The whole thing is affordable because **the meadow is generated, not stored**.
-Every browser builds the identical field from the seed `angen-1` — same trees,
-same eighteen residents, same colours — so none of it is ever sent. That leaves
+Every browser builds the identical field from the same seed — same trees, same
+eighteen residents, same colours — so none of it is ever sent. That leaves
 two things worth putting on the wire:
 
 - **where each child's own unicorn is**, ten times a second while walking and
@@ -292,6 +292,19 @@ two things worth putting on the wire:
   the same places on both screens. The egg is the exception: it sends its foal
   outright rather than a seed, because two children watching one egg must not
   see different ponies come out of it.
+
+**A new meadow every morning.** The seed is the date (`src/game/day.ts`), so
+the scenery, the hills and the whole herd are re-rolled each day. Two things
+make a date usable as a shared seed. It is read in **one fixed timezone**, never
+the device's — cousins can be in different countries, and two children in one
+lobby looking at differently-arranged fields would be worse than any
+arrangement. And the day turns over at **four in the morning**, not midnight, so
+the meadow can never change shape under a child still using it on a late
+holiday evening. The relay applies the same rule; if you change one, change the
+other.
+
+The shovel and the letter table keep their fixed spots, so they are still where
+they were yesterday.
 
 **The herd is shared without being sent.** Where each resident stands is a pure
 function of the wall clock — see `src/game/npc.ts`. Time is chopped into legs of
@@ -334,9 +347,10 @@ leaves the store very small. Only the *choices* survive a reload:
 | live eggs | cast at an arbitrary moment, carrying a rolled foal |
 | hatchlings | the ponies the children made |
 
-It is bucketed by local date (`Europe/Stockholm` by default, `ANGEN_TIMEZONE`
-to change it) and resets each morning — **except the hatchlings, which carry
-over.** A pony a child made should not be gone by breakfast.
+It is bucketed by the same date the field is seeded from and resets each
+morning — **except the hatchlings, which carry over.** A pony a child made
+should not be gone by breakfast, and since everything else about the meadow is
+new each day, the foals they have made are the thread running through it.
 
 The relay learns all of it by watching messages it is relaying anyway, so
 clients tell it almost nothing extra. A live egg is stored with the moment it

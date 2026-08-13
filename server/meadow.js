@@ -29,8 +29,15 @@ const FILE = join(DATA_DIR, 'meadow.json');
 /**
  * The children are in Sweden, and the relay runs in UTC. Without this the
  * meadow would reset in the middle of a summer evening.
+ *
+ * This must match MEADOW_TIMEZONE in src/game/day.ts: the date is the seed the
+ * whole field is generated from, so a relay and a browser that disagree about
+ * the date would be looking at two different meadows.
  */
 const TIMEZONE = process.env.ANGEN_TIMEZONE ?? 'Europe/Stockholm';
+
+/** Hour of the local morning at which a new meadow appears. Matches the client. */
+const DAY_STARTS_AT = 4;
 
 /** Longest a wait between a change and it reaching disk. */
 const SAVE_DEBOUNCE = 3000;
@@ -39,8 +46,11 @@ const SAVE_DEBOUNCE = 3000;
 const LIMITS = { cleaned: 4000, poops: 200, eggs: 40, foals: 300 };
 
 function today() {
-  // en-CA gives ISO-shaped YYYY-MM-DD, which sorts and compares properly.
-  return new Intl.DateTimeFormat('en-CA', { timeZone: TIMEZONE }).format(new Date());
+  // Shifted back, so the small hours still count as yesterday and the meadow
+  // never changes shape under a child who is still using it. en-CA is used
+  // purely because it formats as ISO, which sorts and compares properly.
+  const shifted = new Date(Date.now() - DAY_STARTS_AT * 3600_000);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: TIMEZONE }).format(shifted);
 }
 
 function emptyDay(day) {

@@ -25,6 +25,7 @@ import {
   saveVariant,
   type UnicornVariant,
 } from './game/variant.ts';
+import { meadowDay, meadowSeed } from './game/day.ts';
 import { EAT_RADIUS } from './game/treats.ts';
 import { Visitors } from './game/visitors.ts';
 import { World, WORLD_BOUNDS, SHOVEL_SPOT, TABLE_SPOT } from './game/world.ts';
@@ -93,7 +94,9 @@ async function start(): Promise<void> {
   saveVariant(variant);
 
   let player = new Unicorn(variant, assets);
-  const world = new World(assets, player);
+  // A new field every morning: new scenery, new hills, a new herd. The foals
+  // the children have hatched are the one thing that carries over.
+  const world = new World(assets, player, meadowSeed());
   let controller = new PlayerController(player, WORLD_BOUNDS);
   controller.onStep = () => sfx.step();
 
@@ -287,6 +290,11 @@ async function start(): Promise<void> {
       // the field, the herd, the residents' droppings — regenerates from the
       // clock and needs nothing here.
       onState: (state) => {
+        // Both sides run the same rule, so this should never differ outside a
+        // clock being badly wrong. Worth saying out loud if it ever does.
+        if (state.day !== meadowDay()) {
+          console.warn(`meadow day mismatch: relay says ${state.day}, this browser says ${meadowDay()}`);
+        }
         world.poop.forget(state.cleaned);
         for (const p of state.poops) world.poop.spawn(p.id, p.x, p.y);
 
