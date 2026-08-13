@@ -261,9 +261,19 @@ async function start(): Promise<void> {
         m: controller.moving,
       }),
       variant: () => worn,
+      cleaned: () => world.poop.shovelled,
     },
     {
       onSpell: (id, x, y, seed, foal) => applySpell(id, x, y, seed, foal),
+      onPoop: (poop, x, y) => {
+        if (world.poop.spawn(poop, x, y)) sfx.plop();
+      },
+      onClean: (poop) => {
+        if (world.poop.cleanById(poop)) sfx.sparkle();
+      },
+      // A friend's record of the tidying, adopted so today's presents are not
+      // all put back the moment a latecomer works out that they happened.
+      onCleanedList: (poops) => world.poop.forget(poops),
       onStatus: (status) => {
         if (status === 'online') {
           settledAt = performance.now() + 3000;
@@ -342,13 +352,18 @@ async function start(): Promise<void> {
     hud.setHint('Peka på bajset för att skotta upp det!');
   };
 
-  const shovelPoop = (): boolean => {
-    if (!hasShovel) return false;
-    const target = world.poop.nearest(player.x, player.y);
-    if (!target || !world.poop.clean(target)) return false;
+  /** Shovels a poop and tells everyone, so it goes on both screens. */
+  const shovel = (target: { id: string } | null): boolean => {
+    if (!target || !world.poop.cleanById(target.id)) return false;
     sfx.sparkle();
     hud.setCleaned(world.poop.cleaned);
+    session.broadcastClean(target.id);
     return true;
+  };
+
+  const shovelPoop = (): boolean => {
+    if (!hasShovel) return false;
+    return shovel(world.poop.nearest(player.x, player.y));
   };
 
   const caretaking = (dt: number): void => {
@@ -364,8 +379,15 @@ async function start(): Promise<void> {
     playerPoopIn -= dt;
     if (playerPoopIn <= 0) {
       playerPoopIn = 30 + Math.random() * 40;
-      if (!controller.moving && world.poop.spawn(player.x - player.facing * 0.55, player.y - 0.15)) {
+      // The residents' presents are worked out from the clock on every machine.
+      // This one cannot be — it depends on where the child happens to be
+      // standing — so it is named after them and sent.
+      const id = `${session.id}:${Math.round(Date.now() / 1000)}`;
+      const x = player.x - player.facing * 0.55;
+      const y = player.y - 0.15;
+      if (!controller.moving && world.poop.spawn(id, x, y)) {
         sfx.plop();
+        session.broadcastPoop(id, x, y);
       }
     }
 
@@ -382,10 +404,7 @@ async function start(): Promise<void> {
     // read as "walk over there".
     if (hasShovel && input.pointer.pressed) {
       const at = camera.screenToWorld(input.pointer.x, input.pointer.y, viewport);
-      const target = world.poop.findTarget(at.x, at.y, player.x, player.y);
-      if (target && world.poop.clean(target)) {
-        sfx.sparkle();
-        hud.setCleaned(world.poop.cleaned);
+      if (shovel(world.poop.findTarget(at.x, at.y, player.x, player.y))) {
         controller.suppressPointer();
       }
     }

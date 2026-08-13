@@ -49,6 +49,14 @@ export interface HelloMessage {
   variant: UnicornVariant;
   pose: Pose;
   /**
+   * Every poop shovelled in this meadow today, as far as the sender knows.
+   *
+   * This is how a child who joins at four in the afternoon avoids arriving to a
+   * field of poop their cousin cleared at ten — the day's droppings are worked
+   * out from the clock, so without this they would all be recreated.
+   */
+  cleaned: string[];
+  /**
    * "Introduce yourself back, even if you already know me." Sent by someone who
    * has realised they missed an introduction. Replies carry it as false, which
    * is what stops two browsers greeting each other forever.
@@ -80,12 +88,38 @@ export interface SpellMessage {
   variant?: UnicornVariant;
 }
 
+/**
+ * A present the *player's own* unicorn left. The residents' presents are worked
+ * out from the clock and need no message at all; only this one is unpredictable
+ * enough to have to be told.
+ */
+export interface PoopMessage {
+  t: 'poop';
+  id: string;
+  poop: string;
+  x: number;
+  y: number;
+}
+
+/** Somebody shovelled one. Named, so both screens remove the same poop. */
+export interface CleanMessage {
+  t: 'clean';
+  id: string;
+  poop: string;
+}
+
 export interface ByeMessage {
   t: 'bye';
   id: string;
 }
 
-export type NetMessage = HelloMessage | PoseMessage | SpellMessage | ByeMessage;
+export type NetMessage =
+  | HelloMessage
+  | PoseMessage
+  | SpellMessage
+  | PoopMessage
+  | CleanMessage
+  | ByeMessage;
 
 /** A cheap unique name for this browser tab, for the length of one visit. */
 export function newPeerId(): string {

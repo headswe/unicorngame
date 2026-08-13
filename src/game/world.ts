@@ -10,7 +10,7 @@
 import * as THREE from 'three';
 
 import type { AssetLibrary, Part } from '../engine/assets.ts';
-import { hashSeed, makeRng, type Rng } from '../engine/rng.ts';
+import { hash01, hashSeed, makeRng, type Rng } from '../engine/rng.ts';
 import { createSprite, type Sprite } from '../engine/sprite.ts';
 import { depthOrder, PART_ORDER, projectY } from '../engine/view.ts';
 import { Backdrop } from './backdrop.ts';
@@ -57,8 +57,27 @@ export const TABLE_SPOT = { x: -9.5, y: 14.5 };
 /** Nothing large is planted within this radius of the letter table either. */
 const TABLE_CLEARING = 4;
 
-/** Seconds between one unicorn's presents. Long enough to stay a treat. */
-const POOP_INTERVAL = { min: 14, max: 38 };
+/**
+ * Presents are generated from the clock, the same way the herd's positions are,
+ * so both children find the same poop in the same places without a word passing
+ * between them.
+ *
+ * Every resident gets one chance per slot to leave something. Which slots, and
+ * exactly when within them, is hashed from the resident and the slot number, so
+ * the whole day's droppings can be worked out from scratch by a browser that
+ * only just opened.
+ */
+const POOP_SLOT = 40;
+
+/** How likely a resident is to leave something in any given slot. */
+const POOP_CHANCE = 0.03;
+
+/**
+ * Presents older than this are not replayed when the game opens. A meadow that
+ * greets a child with nine hours of accumulated poop is a chore, not a game;
+ * the last stretch is enough to give them something to do.
+ */
+const POOP_BACKLOG = 20 * 60;
 
 /** How far a unicorn will notice a strawberry and come over for it. */
 const TREAT_SMELL = 9;
@@ -115,7 +134,8 @@ export class World {
   onHatch: ((variant: UnicornVariant) => void) | null = null;
 
   private readonly decor: THREE.Group = new THREE.Group();
-  private readonly poopTimers: number[] = [];
+  /** Next present slot to consider; null until the first frame catches up. */
+  private poopSlot: number | null = null;
   private shovelSprite: THREE.Object3D | null = null;
   /** False only when the sprite is missing, which keeps the hint honest. */
   hasLetterTable = false;
@@ -222,13 +242,11 @@ export class World {
     unicorn: Unicorn,
     wanderSeed: number,
     roam: number,
-    firstPoopIn: number,
   ): void {
     this.scene.add(unicorn.group);
     this.residents.push(
       new WanderingUnicorn(unicorn, wanderSeed, unicorn.x, unicorn.y, roam, WORLD_BOUNDS),
     );
-    this.poopTimers.push(firstPoopIn);
   }
 
   private populate(rng: Rng): void {
@@ -249,7 +267,7 @@ export class World {
       unicorn.y = y;
       unicorn.facing = rng.chance(0.5) ? 1 : -1;
       // Staggered, so the meadow does not fill up all at once at the start.
-      this.addResident(unicorn, rng.int(1e9), rng.range(3, 9), rng.range(4, POOP_INTERVAL.max));
+      this.addResident(unicorn, rng.int(1e9), rng.range(3, 9));
     }
   }
 
@@ -307,7 +325,6 @@ export class World {
       hashSeed(variant.seed),
       // Newborns keep close to where they hatched.
       4,
-      randomBetween(POOP_INTERVAL.min, POOP_INTERVAL.max),
     );
     this.onHatch?.(variant);
   }
@@ -394,22 +411,9 @@ export class World {
     // half an hour later than the other.
     const now = Date.now() / 1000;
 
-    for (const [i, resident] of this.residents.entries()) {
-      resident.update(dt, now);
+    for (const resident of this.residents) resident.update(dt, now);
 
-      // Presents arrive on each unicorn's own clock, so they never all go at
-      // once, and only while it is standing still.
-      this.poopTimers[i] = (this.poopTimers[i] ?? 0) - dt;
-      if ((this.poopTimers[i] ?? 0) <= 0) {
-        this.poopTimers[i] = randomBetween(POOP_INTERVAL.min, POOP_INTERVAL.max);
-        const unicorn = resident.unicorn;
-        // Behind the unicorn, which is where you would expect to find it.
-        if (this.poop.spawn(unicorn.x - unicorn.facing * 0.55, unicorn.y - 0.15)) {
-          this.onPoop?.();
-        }
-      }
-    }
-
+    this.dropPresents(now);
     this.poop.update(dt);
     this.treats.update(dt);
     this.feedResidents();
@@ -417,6 +421,41 @@ export class World {
     // Last, because a hatching egg adds to `residents` and nothing above may
     // still be part-way through iterating it.
     this.eggs.update(dt);
+  }
+
+  /**
+   * Works out which presents exist by now and puts down any that are missing.
+   *
+   * Slots are scanned once each, from a cursor, so the cost is a short catch-up
+   * on the first frame and almost nothing after that. Because a resident's
+   * position can be asked for at any past moment, each present lands exactly
+   * where that pony was standing when it left it.
+   */
+  private dropPresents(now: number): void {
+    const current = Math.floor(now / POOP_SLOT);
+    // First frame: replay only the recent past, not the whole day.
+    const from = this.poopSlot ?? Math.floor((now - POOP_BACKLOG) / POOP_SLOT);
+
+    for (let slot = from; slot <= current; slot++) {
+      for (const resident of this.residents) {
+        if (hash01(resident.seed, slot) >= POOP_CHANCE) continue;
+
+        // Somewhere inside the slot, so eighteen ponies do not go at once.
+        const when = (slot + hash01(resident.seed, slot ^ 0x5bd1)) * POOP_SLOT;
+        if (when > now) continue;
+
+        const id = `${resident.seed}:${slot}`;
+        if (this.poop.knows(id)) continue;
+
+        const at = resident.positionAt(when);
+        if (this.poop.spawn(id, at.x - 0.55, at.y - 0.15)) {
+          // Only the ones that have just happened are worth a noise; the
+          // catch-up ones were dropped while nobody was watching.
+          if (now - when < 2) this.onPoop?.();
+        }
+      }
+    }
+    this.poopSlot = current + 1;
   }
 
   /** Unicorns notice strawberries nearby, walk over, and eat them. */
@@ -458,8 +497,4 @@ export class World {
       if (t >= 1) this.blooms.splice(i, 1);
     }
   }
-}
-
-function randomBetween(min: number, max: number): number {
-  return min + Math.random() * (max - min);
 }

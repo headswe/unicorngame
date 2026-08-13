@@ -307,8 +307,22 @@ hour later starts every resident back at its spawn point. Eighteen ponies in the
 wrong places is exactly the kind of thing two children on a call notice
 immediately: "look at the blue one by the tree" has to mean something.
 
-Still *not* synchronised: the poop they leave and who eats which strawberry.
-Those are per-machine for now.
+**The poop is shared the same way.** Each resident gets one hashed chance per
+40-second slot to leave something, and because a resident's position can be
+asked for at any *past* moment, each present lands exactly where that pony was
+standing when it dropped it. Both children work out the same droppings from the
+clock with nothing on the wire. Only the last twenty minutes are replayed on
+opening — a meadow that greets a child with nine hours of accumulated poop is a
+chore, not a game.
+
+Shovelling *is* sent, because it is a choice rather than a consequence. Each
+poop has a stable name (`resident:slot`), so "I cleaned `418:1042`" removes the
+same one on every screen. A `hello` carries everything the sender has cleaned
+today, which is how a child joining at four in the afternoon avoids arriving to
+a field their cousin cleared at ten.
+
+Still per-machine: who eats which strawberry, and — until the day store below
+exists — anything cleaned while nobody else was online.
 
 There is no host and no server-side authority — every browser runs its own
 meadow and simply draws the others walking through it. Nothing in `src/net/` can

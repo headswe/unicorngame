@@ -34,6 +34,12 @@ const IDLE_HZ = 2;
 export interface SessionCallbacks {
   /** Someone else cast a spell; replay it locally so both screens agree. */
   onSpell(spell: string, x: number, y: number, seed: string, variant?: UnicornVariant): void;
+  /** Someone else's unicorn left a present. */
+  onPoop(poop: string, x: number, y: number): void;
+  /** Someone shovelled one, named so both screens remove the same poop. */
+  onClean(poop: string): void;
+  /** What a peer says has already been shovelled here today. */
+  onCleanedList(poops: string[]): void;
   onStatus(status: NetStatus): void;
 }
 
@@ -41,6 +47,8 @@ export interface SessionSources {
   /** This player's unicorn, right now. */
   pose(): Pose;
   variant(): UnicornVariant;
+  /** Every poop shovelled here today, for bringing a newcomer up to date. */
+  cleaned(): string[];
 }
 
 export class Session {
@@ -96,6 +104,7 @@ export class Session {
       id: this.id,
       variant: this.sources.variant(),
       pose: this.sources.pose(),
+      cleaned: this.sources.cleaned(),
       ask,
     });
   }
@@ -126,6 +135,18 @@ export class Session {
     this.transport.send({ t: 'spell', id: this.id, spell, x, y, seed, variant });
   }
 
+  /** Tells everyone the player's unicorn left a present. */
+  broadcastPoop(poop: string, x: number, y: number): void {
+    if (this.status !== 'online') return;
+    this.transport.send({ t: 'poop', id: this.id, poop, x, y });
+  }
+
+  /** Tells everyone a poop was shovelled. */
+  broadcastClean(poop: string): void {
+    if (this.status !== 'online') return;
+    this.transport.send({ t: 'clean', id: this.id, poop });
+  }
+
   private receive(message: NetMessage): void {
     // A relay broadcasts to everyone, so our own messages can come back.
     if (!('id' in message) || message.id === this.id) return;
@@ -137,6 +158,9 @@ export class Session {
         if (message.v !== PROTOCOL_VERSION) return;
         const stranger = this.visitors.isStranger(message.id);
         this.visitors.greet(message.id, message.variant, message.pose);
+        // Adopt their record of the tidying before working out today's poop,
+        // or we would put back everything they have already cleared.
+        this.callbacks.onCleanedList(message.cleaned ?? []);
         // Answer a newcomer so they learn about us, and answer anyone who has
         // explicitly asked. Never answer a plain re-announcement from someone
         // we already know, or two browsers would greet each other forever.
@@ -157,6 +181,12 @@ export class Session {
           message.seed,
           message.variant,
         );
+        break;
+      case 'poop':
+        this.callbacks.onPoop(message.poop, message.x, message.y);
+        break;
+      case 'clean':
+        this.callbacks.onClean(message.poop);
         break;
       case 'bye':
         this.visitors.remove(message.id);

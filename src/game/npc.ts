@@ -21,6 +21,7 @@
  * that eases back onto it afterwards.
  */
 
+import { hash01 } from '../engine/rng.ts';
 import { clamp, type WorldBounds } from './player.ts';
 import type { Unicorn } from './unicorn.ts';
 
@@ -40,20 +41,6 @@ const CHASE_SPEED = 1.8;
 /** Seconds spent easing back onto the shared path after a detour. */
 const REJOIN_TIME = 1.6;
 
-/**
- * Deterministic value in [0, 1) from two integers. Needed instead of a seeded
- * stream because legs are addressed directly — leg 400 has to be answerable
- * without having generated legs 0 through 399.
- */
-function hash01(a: number, b: number): number {
-  let h = Math.imul(a ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul(b + 0x165667b1, 0xc2b2ae35);
-  h ^= h >>> 15;
-  h = Math.imul(h, 0x2545f491);
-  h ^= h >>> 13;
-  h = Math.imul(h, 0x27d4eb2f);
-  return (h >>> 0) / 4294967296;
-}
-
 /** Smooth start and stop, so a resident does not jerk into motion. */
 function ease(t: number): number {
   return t * t * (3 - 2 * t);
@@ -70,7 +57,8 @@ export class WanderingUnicorn {
 
   constructor(
     readonly unicorn: Unicorn,
-    private readonly seed: number,
+    /** Also identifies this resident's presents, which are hashed from it. */
+    readonly seed: number,
     private readonly homeX: number,
     private readonly homeY: number,
     private readonly roam: number,
@@ -93,12 +81,14 @@ export class WanderingUnicorn {
   }
 
   /**
-   * Where this resident is at absolute time `now`, in seconds.
+   * Where this resident is at absolute time `now`, in seconds — past or future.
    *
    * Every browser passes the same wall-clock value and gets the same answer,
-   * which is what makes the herd shared without sending anything.
+   * which is what makes the herd shared without sending anything. Answering for
+   * *past* moments is what lets a present dropped ten minutes ago be placed
+   * exactly where the pony was standing at the time.
    */
-  private placeAt(now: number): { x: number; y: number } {
+  positionAt(now: number): { x: number; y: number } {
     // Each resident starts its cycle at its own moment, so eighteen ponies do
     // not all set off on the same beat.
     const offset = hash01(this.seed, 0xffff) * LEG_SECONDS;
@@ -136,7 +126,7 @@ export class WanderingUnicorn {
   }
 
   update(dt: number, now: number): void {
-    const shared = this.placeAt(now);
+    const shared = this.positionAt(now);
 
     if (this.chasing) {
       const dx = this.chasing.x - this.unicorn.x;
