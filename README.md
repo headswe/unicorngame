@@ -463,6 +463,24 @@ A push to a branch sends `repo:owner/repo:ref:refs/heads/<branch>`. If the
 credential was set up against an **environment** instead, the job needs a
 matching `environment:` line or the claims will never line up.
 
+Two things that are easy to get wrong here:
+
+**Repositories created after 15 July 2026 send an immutable subject**, carrying
+the numeric owner and repository ids so a rename or transfer cannot silently
+break the trust:
+
+```
+repo:owner@425212/repo@1330120605:ref:refs/heads/<branch>
+```
+
+The ids cannot be omitted from that form, and the two shapes look similar enough
+to copy the wrong one.
+
+**Every subject ends with an entity segment** — `:ref:…`, `:environment:…` or
+`:pull_request`. A subject that stops after the repository matches nothing at
+all, and the error says "access denied" rather than "that is only half a
+subject".
+
 Three repository secrets, all printed by the Bicep deployment:
 
 | secret | from |

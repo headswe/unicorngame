@@ -40,6 +40,16 @@ as a typo. The usual shapes:
   repo:owner/repo:pull_request              pull requests
   repo:owner/repo:ref:refs/tags/<tag>       a single tag
 
+Repositories created after 15 July 2026 send an *immutable* subject instead,
+which carries the numeric owner and repository ids so that renaming or
+transferring the repository does not silently break the trust:
+
+  repo:owner@<owner-id>/repo@<repo-id>:ref:refs/heads/<branch>
+
+Check which one this repository sends before assuming; the two look similar
+enough to copy the wrong one, and the failure is an unhelpful "access denied".
+The ids cannot be left out of the immutable form.
+
 Defaulted to one branch because a template should start narrow. Widening it is
 a fair choice for a private repository nobody else can push to — the identity
 can only deploy this one app either way — but it should be a decision rather
