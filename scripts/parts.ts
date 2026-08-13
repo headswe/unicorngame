@@ -317,6 +317,19 @@ export const PARTS: PartSpec[] = [
     0.4,
   ),
 
+  prop(
+    'bokstavsbord',
+    'Bokstavsbord',
+    'A small low wooden play table seen from the side, with four sturdy ' +
+      'rounded legs and a warm honey-coloured top. On the table top stand a ' +
+      'few chunky painted alphabet blocks in red, blue, yellow and green, ' +
+      'each with a big clear letter on its face, plus a couple more blocks ' +
+      'leaning against each other and one small stack. A rolled-up sheet of ' +
+      'paper and a stubby pencil lie beside them. It looks inviting, like a ' +
+      'little outdoor school desk in a meadow.',
+    1.4,
+  ),
+
   // --- sky ------------------------------------------------------------------
   {
     id: 'moln_stort',

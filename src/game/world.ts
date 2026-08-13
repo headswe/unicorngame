@@ -46,6 +46,16 @@ export const SPAWN = { x: 0, y: 8 };
 /** Where the shovel is lying when the game starts — in plain sight of spawn. */
 export const SHOVEL_SPOT = { x: 4.2, y: 9.5 };
 
+/**
+ * The letter table, where the spelling game lives. Far enough from spawn to be
+ * something you walk over and discover, close enough that you cannot miss it on
+ * the first stroll north.
+ */
+export const TABLE_SPOT = { x: -9.5, y: 14.5 };
+
+/** Nothing large is planted within this radius of the letter table either. */
+const TABLE_CLEARING = 4;
+
 /** Seconds between one unicorn's presents. Long enough to stay a treat. */
 const POOP_INTERVAL = { min: 14, max: 38 };
 
@@ -95,6 +105,8 @@ export class World {
   private readonly decor: THREE.Group = new THREE.Group();
   private readonly poopTimers: number[] = [];
   private shovelSprite: THREE.Object3D | null = null;
+  /** False only when the sprite is missing, which keeps the hint honest. */
+  hasLetterTable = false;
 
   constructor(
     private readonly assets: AssetLibrary,
@@ -120,6 +132,7 @@ export class World {
     this.treats = new TreatField(assets);
     this.scene.add(this.treats.group);
     this.placeShovel();
+    this.placeLetterTable();
 
     this.player = playerUnicorn;
     this.player.x = SPAWN.x;
@@ -170,7 +183,9 @@ export class World {
           x = rng.range(WORLD_BOUNDS.minX - 4, WORLD_BOUNDS.maxX + 4);
           y = rng.range(WORLD_BOUNDS.minY - 3, HORIZON_Y - 1.5);
           const clear =
-            !spec.avoidsClearing || Math.hypot(x - SPAWN.x, y - SPAWN.y) > CLEARING_RADIUS;
+            !spec.avoidsClearing ||
+            (Math.hypot(x - SPAWN.x, y - SPAWN.y) > CLEARING_RADIUS &&
+              Math.hypot(x - TABLE_SPOT.x, y - TABLE_SPOT.y) > TABLE_CLEARING);
           if (clear) {
             placed = true;
             break;
@@ -262,6 +277,18 @@ export class World {
     group.position.set(SHOVEL_SPOT.x, projectY(SHOVEL_SPOT.y), 0);
     this.scene.add(group);
     this.shovelSprite = group;
+  }
+
+  /**
+   * Stands the letter table in the meadow. It is only scenery as far as the
+   * world is concerned — walking up to it is what opens the spelling game, and
+   * that check lives with the rest of the caretaking.
+   */
+  private placeLetterTable(): void {
+    if (!this.assets.has('bokstavsbord')) return;
+    const part = this.assets.get('bokstavsbord');
+    this.plant(part, TABLE_SPOT.x, TABLE_SPOT.y, part.worldHeight, true);
+    this.hasLetterTable = true;
   }
 
   /** Removes the shovel from the grass once it has been picked up. */

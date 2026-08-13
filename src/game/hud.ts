@@ -11,8 +11,6 @@ export interface HudCallbacks {
   onOpenWardrobe(): void;
   /** Opens the spellcasting overlay. */
   onCastSpell(): void;
-  /** Opens the spelling minigame. */
-  onSpelling(): void;
   /** Returns the new state: true when music is now playing. */
   onToggleMusic(): boolean;
 }
@@ -43,9 +41,6 @@ export class Hud {
         <button type="button" class="hud-icon hud-spell" aria-label="Trolla">
           <span aria-hidden="true">✨</span>
         </button>
-        <button type="button" class="hud-icon hud-abc" aria-label="Stava ord">
-          <span aria-hidden="true">🔤</span>
-        </button>
         <button type="button" class="hud-icon hud-music" aria-pressed="true">
           <span aria-hidden="true">🎵</span>
         </button>
@@ -58,10 +53,9 @@ export class Hud {
     const button = this.root.querySelector<HTMLButtonElement>('.hud-button');
     const music = this.root.querySelector<HTMLButtonElement>('.hud-music');
     const spell = this.root.querySelector<HTMLButtonElement>('.hud-spell');
-    const abc = this.root.querySelector<HTMLButtonElement>('.hud-abc');
     const tally = this.root.querySelector<HTMLSpanElement>('.hud-tally');
     const tallyCount = this.root.querySelector<HTMLSpanElement>('.hud-tally-count');
-    if (!nameLabel || !button || !music || !tally || !tallyCount || !spell || !abc) {
+    if (!nameLabel || !button || !music || !tally || !tallyCount || !spell) {
       throw new Error('hud markup did not build');
     }
     this.nameLabel = nameLabel;
@@ -85,12 +79,6 @@ export class Hud {
         music.blur();
       });
     }
-
-    abc.addEventListener('click', (event) => {
-      event.preventDefault();
-      callbacks.onSpelling();
-      abc.blur();
-    });
 
     spell.addEventListener('click', (event) => {
       event.preventDefault();

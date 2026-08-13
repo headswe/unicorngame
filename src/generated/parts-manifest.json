@@ -352,6 +352,17 @@
     "tintable": false
   },
   {
+    "id": "bokstavsbord",
+    "kind": "prop",
+    "label": "Bokstavsbord",
+    "url": "assets/parts/bokstavsbord.png",
+    "width": 512,
+    "height": 403,
+    "aspect": 1.2704714640198511,
+    "worldHeight": 1.4,
+    "tintable": false
+  },
+  {
     "id": "moln_stort",
     "kind": "cloud",
     "label": "Moln",

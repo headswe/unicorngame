@@ -26,7 +26,7 @@ import {
   type UnicornVariant,
 } from './game/variant.ts';
 import { EAT_RADIUS } from './game/treats.ts';
-import { World, WORLD_BOUNDS, SHOVEL_SPOT } from './game/world.ts';
+import { World, WORLD_BOUNDS, SHOVEL_SPOT, TABLE_SPOT } from './game/world.ts';
 
 /** How much sky is allowed above the far edge of the meadow. */
 const SKY_HEADROOM = 5;
@@ -38,6 +38,16 @@ const MAX_STEP = 1 / 20;
 
 /** How close the player has to get to pick the shovel up off the grass. */
 const SHOVEL_PICKUP = 1.6;
+
+/** How close to the letter table you have to stand for the game to open. */
+const TABLE_REACH = 2.2;
+/**
+ * And how far you have to walk off again before it will open a second time —
+ * otherwise closing the game while still standing at the table reopens it.
+ */
+const TABLE_LEAVE = 3.6;
+/** How near the table has to be before the hint points it out. */
+const TABLE_NOTICE = 9;
 
 /**
  * The whole renderer works in sRGB byte space, so three must not helpfully
@@ -115,7 +125,6 @@ async function start(): Promise<void> {
     onToggleMusic: () => music.toggle(),
     onCastSpell: () => openSpellbook(),
     onOpenWardrobe: () => openWardrobe(),
-    onSpelling: () => openSpelling(),
   }, { hasMusic: music.available, musicOn: music.enabled });
   hud.setName(variant.name);
 
@@ -197,6 +206,37 @@ async function start(): Promise<void> {
   // surprise rather than a nuisance while you are trying to tidy up.
   let playerPoopIn = 30 + Math.random() * 40;
 
+  // --- the letter table ------------------------------------------------------
+  // The spelling game has no button: you have to walk to the little table with
+  // the alphabet blocks on it, out in the meadow.
+  let atTable = false;
+  let nearTable = false;
+
+  const letterTable = (): void => {
+    if (!world.hasLetterTable) return;
+    const away = Math.hypot(player.x - TABLE_SPOT.x, player.y - TABLE_SPOT.y);
+    nearTable = away < TABLE_NOTICE;
+
+    if (atTable) {
+      // Standing at it. Wait until the player has properly walked off before
+      // the table is allowed to grab them again.
+      if (away > TABLE_LEAVE) {
+        atTable = false;
+        hud.setHint(null);
+      }
+      return;
+    }
+
+    if (away < TABLE_REACH) {
+      atTable = true;
+      hud.setHint('Gå bort och tillbaka för ett nytt ord!');
+      openSpelling();
+      return;
+    }
+
+    if (nearTable) hud.setHint('Bokstavsbordet! Gå fram och stava.');
+  };
+
   // --- caretaking ----------------------------------------------------------
   let hasShovel = false;
   let spaceHeld = false;
@@ -219,6 +259,8 @@ async function start(): Promise<void> {
   };
 
   const caretaking = (dt: number): void => {
+    letterTable();
+
     // The player's unicorn grazes on strawberries by walking over them.
     const treat = world.treats.nearest(player.x, player.y, EAT_RADIUS);
     if (treat && world.treats.eat(treat)) {
@@ -238,7 +280,7 @@ async function start(): Promise<void> {
     if (!hasShovel && world.shovelOnGround) {
       if (Math.hypot(player.x - SHOVEL_SPOT.x, player.y - SHOVEL_SPOT.y) < SHOVEL_PICKUP) {
         takeShovel();
-      } else if (world.poop.count > 0) {
+      } else if (world.poop.count > 0 && !nearTable) {
         hud.setHint('Hitta spaden för att städa!');
       }
     }
