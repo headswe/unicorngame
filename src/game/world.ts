@@ -261,18 +261,30 @@ export class World {
   }
 
   /**
-   * Conjures an egg beside a point and returns the foal that is inside it.
+   * Rolls the foal an egg would contain.
    *
-   * The foal is rolled here rather than at hatching time, which is the whole
-   * trick: the shell can then be painted in its coat colour and coat pattern,
-   * so you can see what is coming while you wait.
+   * Separate from laying it because whoever casts the spell decides what is
+   * inside and tells everyone else — two children watching the same egg must
+   * not see two different ponies come out of it.
    */
-  layEgg(x: number, y: number, rng: Rng): UnicornVariant | null {
-    if (!this.eggs.available) return null;
-
-    const variant = randomVariant(this.assets, `agg-${randomSeed()}`);
+  rollFoal(): UnicornVariant {
+    const foal = randomVariant(this.assets, `agg-${randomSeed()}`);
     // Whatever the roll said, something that just hatched is a foal.
-    variant.scale = Math.min(variant.scale, 0.78);
+    foal.scale = Math.min(foal.scale, 0.78);
+    return foal;
+  }
+
+  /**
+   * Conjures an egg beside a point, with a known foal inside it.
+   *
+   * The foal is settled before the shell exists, which is the whole trick: it
+   * can then be painted in that foal's coat colour and coat pattern, so you can
+   * see what is coming while you wait. Everything else about the egg — where it
+   * lands, how long it takes — comes from `rng`, so casting this with the same
+   * seed on two machines puts the same egg in the same place.
+   */
+  layEgg(x: number, y: number, rng: Rng, foal: UnicornVariant): boolean {
+    if (!this.eggs.available) return false;
 
     // Beside the caster rather than under them, and never outside the fence.
     const angle = rng.range(0, Math.PI * 2);
@@ -284,8 +296,7 @@ export class World {
       WORLD_BOUNDS.maxY,
     );
 
-    const hatchIn = rng.range(HATCH_TIME.min, HATCH_TIME.max);
-    return this.eggs.lay(eggX, eggY, variant, hatchIn) ? variant : null;
+    return this.eggs.lay(eggX, eggY, foal, rng.range(HATCH_TIME.min, HATCH_TIME.max));
   }
 
   /** An egg has opened: the foal joins the herd where the shell was. */

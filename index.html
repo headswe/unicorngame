@@ -132,7 +132,8 @@
         background: #e6e0da;
         opacity: 0.75;
       }
-      .hud-tally {
+      .hud-tally,
+      .hud-friends {
         display: inline-flex;
         align-items: center;
         gap: 0.3rem;
@@ -144,10 +145,15 @@
         border: 2px solid var(--ink);
         transition: transform 0.15s ease;
       }
-      .hud-tally[hidden] {
+      .hud-friends {
+        background: #d9f0ff;
+      }
+      .hud-tally[hidden],
+      .hud-friends[hidden] {
         display: none;
       }
-      .hud-tally.pop {
+      .hud-tally.pop,
+      .hud-friends.pop {
         animation: tally-pop 0.35s ease;
       }
       @keyframes tally-pop {

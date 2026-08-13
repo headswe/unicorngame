@@ -1,0 +1,187 @@
+/**
+ * One child's place in the shared meadow.
+ *
+ * Sits between the transport and the game: sends this player's unicorn out at a
+ * steady rate, turns everyone else's messages into visitors, and hands cast
+ * spells to the game so both screens get the same shower of strawberries.
+ *
+ * There is no host and no server-side authority. Every browser runs its own
+ * meadow and simply shows the others walking through it. That is only possible
+ * because the field is generated from a seed, and it is what keeps this layer
+ * small enough to trust: nothing here can break single-player, because when the
+ * relay is down the game simply carries on with nobody else in it.
+ *
+ * Introductions are peer-to-peer. A newcomer's `hello` is answered with a
+ * `hello` from anyone who does not already know them, which both introduces the
+ * newcomer and fills in everyone who was already here. The reply is gated on
+ * not knowing the sender, which is what stops it echoing forever.
+ */
+
+import type { Visitors } from '../game/visitors.ts';
+import type { UnicornVariant } from '../game/variant.ts';
+import {
+  newPeerId,
+  POSE_HZ,
+  PROTOCOL_VERSION,
+  type NetMessage,
+  type Pose,
+} from './protocol.ts';
+import type { NetStatus, Transport } from './transport.ts';
+
+/** How often a standing-still unicorn reports in, as a heartbeat. */
+const IDLE_HZ = 2;
+
+export interface SessionCallbacks {
+  /** Someone else cast a spell; replay it locally so both screens agree. */
+  onSpell(spell: string, x: number, y: number, seed: string, variant?: UnicornVariant): void;
+  onStatus(status: NetStatus): void;
+}
+
+export interface SessionSources {
+  /** This player's unicorn, right now. */
+  pose(): Pose;
+  variant(): UnicornVariant;
+}
+
+export class Session {
+  readonly id = newPeerId();
+  status: NetStatus = 'offline';
+
+  private since = 0;
+  private lastSent: Pose | null = null;
+  private lastRepair = 0;
+
+  constructor(
+    private readonly transport: Transport,
+    private readonly visitors: Visitors,
+    private readonly sources: SessionSources,
+    private readonly callbacks: SessionCallbacks,
+  ) {
+    transport.onMessage = (message) => this.receive(message);
+    transport.onStatus = (status) => this.changed(status);
+  }
+
+  start(): void {
+    this.transport.start();
+    // A closed laptop should not leave a pony standing in someone else's field
+    // any longer than it has to. The timeout would clear it anyway; this is the
+    // polite version.
+    window.addEventListener('pagehide', () => this.leave());
+  }
+
+  private changed(status: NetStatus): void {
+    this.status = status;
+    if (status === 'online') {
+      this.announce();
+    } else {
+      // Nobody is reachable, so nobody is here. Better an empty meadow than a
+      // field of ponies frozen where the connection died.
+      this.visitors.clear();
+    }
+    this.callbacks.onStatus(status);
+  }
+
+  /**
+   * Introduces this player. Called on connect and after a wardrobe change.
+   *
+   * `ask` requests an introduction back even from peers who already know us,
+   * which is how a missed handshake is repaired. Replies never set it, so the
+   * exchange always terminates.
+   */
+  announce(ask = false): void {
+    if (this.status !== 'online') return;
+    this.transport.send({
+      t: 'hello',
+      v: PROTOCOL_VERSION,
+      id: this.id,
+      variant: this.sources.variant(),
+      pose: this.sources.pose(),
+      ask,
+    });
+  }
+
+  /**
+   * Someone is out there that we were never introduced to — a lost hello, or we
+   * connected while they were mid-handshake. Ask them to say hello again.
+   *
+   * Throttled, because the cue for this is their pose messages and those arrive
+   * ten times a second; one request is enough.
+   */
+  private repair(): void {
+    const now = performance.now();
+    if (now - this.lastRepair < 1000) return;
+    this.lastRepair = now;
+    this.announce(true);
+  }
+
+  /** Tells everyone what was just cast, so it happens on their screen too. */
+  broadcastSpell(
+    spell: string,
+    x: number,
+    y: number,
+    seed: string,
+    variant?: UnicornVariant,
+  ): void {
+    if (this.status !== 'online') return;
+    this.transport.send({ t: 'spell', id: this.id, spell, x, y, seed, variant });
+  }
+
+  private receive(message: NetMessage): void {
+    // A relay broadcasts to everyone, so our own messages can come back.
+    if (!('id' in message) || message.id === this.id) return;
+
+    switch (message.t) {
+      case 'hello': {
+        // A child with a stale tab open is dropped rather than left watching
+        // everyone else glitch.
+        if (message.v !== PROTOCOL_VERSION) return;
+        const stranger = this.visitors.isStranger(message.id);
+        this.visitors.greet(message.id, message.variant, message.pose);
+        // Answer a newcomer so they learn about us, and answer anyone who has
+        // explicitly asked. Never answer a plain re-announcement from someone
+        // we already know, or two browsers would greet each other forever.
+        if (stranger || message.ask) this.announce();
+        break;
+      }
+      case 'pose':
+        // A pose from someone we were never introduced to means we missed their
+        // hello. Their unicorn would otherwise never appear.
+        if (this.visitors.isStranger(message.id)) this.repair();
+        else this.visitors.moveTo(message.id, message.pose);
+        break;
+      case 'spell':
+        this.callbacks.onSpell(
+          message.spell,
+          message.x,
+          message.y,
+          message.seed,
+          message.variant,
+        );
+        break;
+      case 'bye':
+        this.visitors.remove(message.id);
+        break;
+    }
+  }
+
+  update(dt: number): void {
+    this.visitors.update(dt);
+    if (this.status !== 'online') return;
+
+    this.since += dt;
+    const pose = this.sources.pose();
+    // A unicorn standing still needs only a heartbeat; one being walked needs
+    // enough updates to look like walking.
+    const moving = pose.m || this.lastSent === null || this.lastSent.m;
+    if (this.since < 1 / (moving ? POSE_HZ : IDLE_HZ)) return;
+
+    this.since = 0;
+    this.lastSent = pose;
+    this.transport.send({ t: 'pose', id: this.id, pose });
+  }
+
+  leave(): void {
+    if (this.status === 'online') this.transport.send({ t: 'bye', id: this.id });
+    this.transport.close();
+  }
+}

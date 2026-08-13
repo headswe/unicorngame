@@ -26,6 +26,8 @@ export class Hud {
   private readonly nameLabel: HTMLSpanElement;
   private readonly tally: HTMLSpanElement;
   private readonly tallyCount: HTMLSpanElement;
+  private readonly friends: HTMLSpanElement;
+  private readonly friendsCount: HTMLSpanElement;
   private hint: string | null = null;
   /** While `performance.now()` is below this, ambient hints are held off. */
   private announceUntil = 0;
@@ -37,6 +39,7 @@ export class Hud {
       <div class="hud-card">
         <span class="hud-name"></span>
         <span class="hud-tally" hidden><span class="hud-tally-icon" aria-hidden="true">💩</span><span class="hud-tally-count">0</span></span>
+        <span class="hud-friends" hidden><span aria-hidden="true">🦄</span><span class="hud-friends-count">0</span></span>
         <button type="button" class="hud-button" aria-label="Ändra din enhörning">
           <span aria-hidden="true">👗</span> Min enhörning
         </button>
@@ -57,12 +60,17 @@ export class Hud {
     const spell = this.root.querySelector<HTMLButtonElement>('.hud-spell');
     const tally = this.root.querySelector<HTMLSpanElement>('.hud-tally');
     const tallyCount = this.root.querySelector<HTMLSpanElement>('.hud-tally-count');
+    const friends = this.root.querySelector<HTMLSpanElement>('.hud-friends');
+    const friendsCount = this.root.querySelector<HTMLSpanElement>('.hud-friends-count');
     if (!nameLabel || !button || !music || !tally || !tallyCount || !spell) {
       throw new Error('hud markup did not build');
     }
+    if (!friends || !friendsCount) throw new Error('hud markup did not build');
     this.nameLabel = nameLabel;
     this.tally = tally;
     this.tallyCount = tallyCount;
+    this.friends = friends;
+    this.friendsCount = friendsCount;
 
     if (!options.hasMusic) {
       music.remove();
@@ -113,6 +121,18 @@ export class Hud {
     this.tally.classList.remove('pop');
     void this.tally.offsetWidth;
     this.tally.classList.add('pop');
+  }
+
+  /**
+   * How many other children are in the meadow. Hidden at zero — a lone player
+   * should not be shown a counter reminding them that nobody else is here.
+   */
+  setFriends(count: number): void {
+    this.friends.hidden = count === 0;
+    this.friendsCount.textContent = String(count);
+    this.friends.classList.remove('pop');
+    void this.friends.offsetWidth;
+    this.friends.classList.add('pop');
   }
 
   /**

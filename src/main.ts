@@ -26,7 +26,10 @@ import {
   type UnicornVariant,
 } from './game/variant.ts';
 import { EAT_RADIUS } from './game/treats.ts';
+import { Visitors } from './game/visitors.ts';
 import { World, WORLD_BOUNDS, SHOVEL_SPOT, TABLE_SPOT } from './game/world.ts';
+import { Session } from './net/session.ts';
+import { LoopbackTransport, SocketTransport, type Transport } from './net/transport.ts';
 
 /** How much sky is allowed above the far edge of the meadow. */
 const SKY_HEADROOM = 5;
@@ -137,6 +140,9 @@ async function start(): Promise<void> {
     onChange: (next) => {
       worn = next;
       wearVariant(next);
+      // Everyone else should see the new colours straight away, not next time
+      // this player reloads.
+      session.announce();
     },
     onClose: (next) => {
       worn = next;
@@ -167,7 +173,38 @@ async function start(): Promise<void> {
   };
 
   // --- spellcasting ---------------------------------------------------------
-  const spellRng = makeRng(randomSeed());
+
+  /**
+   * Performs a spell. Driven both by this player casting one and by the network
+   * reporting that someone else did, which is why every random choice comes out
+   * of `seed` rather than out of `Math.random` — cast with the same seed on two
+   * machines, and the strawberries land in the same places on both screens.
+   */
+  const applySpell = (
+    id: string,
+    x: number,
+    y: number,
+    seed: string,
+    foal?: UnicornVariant,
+    mine = false,
+  ): void => {
+    const rng = makeRng(seed);
+
+    if (id === 'jordgubbsregn') {
+      sfx.rainSpell();
+      world.rainStrawberries(x, y, rng);
+    } else if (id === 'blomstercirkel') {
+      sfx.bloomSpell();
+      world.bloomFlowers(x, y, rng);
+    } else if (id === 'trollagg' && foal) {
+      sfx.eggSpell();
+      // Only the child who cast it is told to go and wait; announcing a friend's
+      // egg across the meadow would just be noise.
+      if (world.layEgg(x, y, rng, foal) && mine) {
+        hud.announce('Ett ägg! Vänta hos det tills det kläcks.', 8);
+      }
+    }
+  };
 
   const spellUi = new SpellUi(container, {
     onOpen: () => controller.stop(),
@@ -178,22 +215,66 @@ async function start(): Promise<void> {
       else sfx.fizzle();
     },
     onCast: (spell) => {
-      // The cast chord has already played; this is the spell's own voice.
-      if (spell.sound === 'rain') sfx.rainSpell();
-      else if (spell.sound === 'egg') sfx.eggSpell();
-      else sfx.bloomSpell();
-
-      if (spell.id === 'jordgubbsregn') {
-        world.rainStrawberries(player.x, player.y, spellRng);
-      } else if (spell.id === 'blomstercirkel') {
-        world.bloomFlowers(player.x, player.y, spellRng);
-      } else if (spell.id === 'trollagg') {
-        const coming = world.layEgg(player.x, player.y, spellRng);
-        if (coming) hud.announce('Ett ägg! Vänta hos det tills det kläcks.', 8);
-      }
+      // Everything the spell needs to be reproduced elsewhere is settled here,
+      // then performed locally and sent — never rolled twice.
+      const seed = randomSeed();
+      const foal = spell.id === 'trollagg' ? world.rollFoal() : undefined;
+      applySpell(spell.id, player.x, player.y, seed, foal, true);
+      session.broadcastSpell(spell.id, player.x, player.y, seed, foal);
     },
   });
   openSpellbook = () => spellUi.show();
+
+  // --- the shared meadow ----------------------------------------------------
+  // Everyone generates the same field from the same seed, so the only things
+  // worth sending are the children themselves and the spells they cast.
+  const visitors = new Visitors(assets);
+  world.scene.add(visitors.group);
+  // Joining a busy meadow introduces everyone at once, and three fanfares in
+  // half a second is noise rather than welcome. Arrivals are only announced once
+  // the introductions have settled.
+  let settledAt = Infinity;
+
+  visitors.onCount = (count) => hud.setFriends(count);
+  visitors.onArrive = (who) => {
+    if (performance.now() < settledAt) return;
+    sfx.sparkle();
+    hud.announce(`${who.name} kom på besök!`);
+  };
+
+  const relay = import.meta.env.VITE_ANGEN_RELAY as string | undefined;
+  // With no relay configured the game still plays with itself: a BroadcastChannel
+  // joins up two tabs on the same machine. That is how this was built and
+  // tested, and it means the code path is never cold.
+  const transport: Transport = relay
+    ? new SocketTransport(relay)
+    : new LoopbackTransport();
+
+  const session = new Session(
+    transport,
+    visitors,
+    {
+      pose: () => ({
+        x: player.x,
+        y: player.y,
+        f: player.facing,
+        m: controller.moving,
+      }),
+      variant: () => worn,
+    },
+    {
+      onSpell: (id, x, y, seed, foal) => applySpell(id, x, y, seed, foal),
+      onStatus: (status) => {
+        if (status === 'online') {
+          settledAt = performance.now() + 3000;
+        } else {
+          settledAt = Infinity;
+          hud.setFriends(0);
+        }
+      },
+    },
+  );
+  session.start();
 
   // --- spelling game --------------------------------------------------------
   const spelling = new Spelling(container, assets, {
@@ -364,7 +445,11 @@ async function start(): Promise<void> {
   if (import.meta.env.DEV) {
     // Handy for poking at the meadow from the console while tuning.
     Object.assign(window, {
-      angen: { world, camera, assets, music, sfx, input, spelling, wardrobe, get player() { return player; } },
+      angen: {
+        world, camera, assets, music, sfx, input, spelling, wardrobe,
+        session, visitors,
+        get player() { return player; },
+      },
     });
   }
 
@@ -389,6 +474,7 @@ async function start(): Promise<void> {
       controller.update(dt, input, camera, viewport);
     }
     world.update(dt);
+    session.update(dt);
     followPlayer(dt, false);
     world.backdrop.update(dt, camera.camera, camera.extents(viewport));
 
