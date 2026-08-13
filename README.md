@@ -409,25 +409,49 @@ socket.
 ### Hosting it on Azure App Service
 
 App Service is the boring choice, which is what you want for something children
-rely on when nobody is around to restart it. WebSockets are first-class from
-**Basic (B1)** upward — Free and Shared cap at five connections and cannot do
-Always On — and Basic allows 350 concurrent WebSocket connections per instance,
-which is far more than one family needs.
+rely on when nobody is around to restart it.
+
+`infra/relay.bicep` is the whole infrastructure: one Linux App Service plan and
+one web app. Nothing else — the relay keeps its state in a single JSON file
+under `/home`, which App Service already gives us as persistent storage, so
+there is no database and no storage account.
 
 ```sh
-cd server
-az webapp up --runtime "NODE:20-lts" --sku B1 --name <your-relay-name>
-az webapp config set --name <your-relay-name> --web-sockets-enabled true
-az webapp config set --name <your-relay-name> --always-on true
+az group create --name angen --location swedencentral
+az deployment group create -g angen -f infra/relay.bicep \
+  -p appName=angen-relay-<something-of-yours>
 ```
 
-Two settings matter and both are off by default: **WebSockets** and **Always
-On**. The relay listens on `process.env.PORT`, which App Service provides.
+It prints the `wss://…/angen` URL to use as `VITE_ANGEN_RELAY`.
 
-**Do not scale out.** The lobby lives in one process's memory, so a second
+**B1 is the smallest that works, not a preference.** WebSockets need Basic or
+above, and Free and Shared cannot do Always On — without which the app unloads
+between visits and the first child to arrive waits for a cold start. Basic
+allows 350 concurrent WebSocket connections per instance, far more than one
+family needs. The template turns on WebSockets and Always On, both of which are
+off by default, and pins the app to a single worker.
+
+**Never scale it out.** The lobby lives in one process's memory, so a second
 instance is a second meadow that cannot see the first. Sticky sessions do not
 help — they keep one client on one instance, they do not gather different
 clients onto the same one.
+
+`.github/workflows/deploy-relay.yml` publishes the relay on any push that
+touches `server/`. It needs one secret, `AZURE_RELAY_PUBLISH_PROFILE`:
+
+```sh
+az webapp deployment list-publishing-profiles \
+  -g angen -n angen-relay-<yours> --xml
+```
+
+Paste the XML into the repository secret of that name, and set `APP_NAME` at the
+top of the workflow to match. The job installs production dependencies, checks
+the relay starts and answers `/healthz` locally, deploys, and then waits for the
+live URL to answer before it calls itself done — the relay is the one piece that
+can be quietly down until a child tries to play.
+
+The game and the relay deploy independently and always will: a broken relay
+must never be able to stop the meadow loading.
 
 App Service recycles workers for platform updates, so the socket *will* drop
 during a long session even with Always On. `SocketTransport` reconnects with a

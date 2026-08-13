@@ -1,0 +1,87 @@
+name: Deploy the relay
+
+# Only when the relay itself changes. The game is a static site on Pages and has
+# its own workflow; the two deploy independently, which is deliberate — a broken
+# relay must never be able to stop the children loading the meadow.
+on:
+  push:
+    branches: [claude/unicorn-game-build-88xv4l]
+    paths:
+      - 'server/**'
+      - '.github/workflows/deploy-relay.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Two deploys at once would fight over the same app. Queue rather than cancel,
+# so the last push is what ends up running.
+concurrency:
+  group: relay
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Set this to the name you gave the app when you deployed infra/relay.bicep.
+    env:
+      APP_NAME: angen-relay
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Production dependencies only: the relay needs `ws` and nothing else, and
+      # App Service is told not to build again on its side.
+      - name: Install
+        working-directory: server
+        run: npm ci --omit=dev
+
+      - name: Check it parses
+        working-directory: server
+        run: |
+          node --check relay.js
+          node --check meadow.js
+
+      # A quick proof it actually starts and serves, so a syntax-clean but
+      # broken relay does not get as far as the children.
+      - name: Smoke test
+        working-directory: server
+        run: |
+          PORT=8080 ANGEN_DATA_DIR=./ci-data node relay.js &
+          for i in $(seq 1 20); do
+            if curl -sf http://localhost:8080/healthz > /dev/null; then
+              echo "relay is up:"
+              curl -s http://localhost:8080/healthz
+              exit 0
+            fi
+            sleep 0.5
+          done
+          echo "relay did not come up" >&2
+          exit 1
+
+      - name: Deploy
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.APP_NAME }}
+          publish-profile: ${{ secrets.AZURE_RELAY_PUBLISH_PROFILE }}
+          package: server
+
+      # The relay is the one piece that can be down without anybody noticing
+      # until a child tries to play, so the deploy is not finished until it has
+      # answered for itself.
+      - name: Wait for it to answer
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf "https://${APP_NAME}.azurewebsites.net/healthz"; then
+              echo
+              echo "relay is live"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "relay did not answer after the deploy" >&2
+          exit 1
