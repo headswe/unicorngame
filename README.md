@@ -293,6 +293,15 @@ two things worth putting on the wire:
   outright rather than a seed, because two children watching one egg must not
   see different ponies come out of it.
 
+**Everyone can tell which pony is whose.** Eighteen residents wander the field
+and one of them may well be wearing a coat like yours, so a child can genuinely
+lose track of the unicorn they are driving. A marker floats over the head — gold
+and wordless for your own, since the HUD already has its name, and blue with the
+name on it for a friend's, because "which one is Alva" is exactly the question
+you ask about somebody else's pony. It follows rather than being parented to the
+unicorn: the unicorn's group is mirrored when it turns around, and a parented
+arrow would flip with it and a name would come out backwards.
+
 **A new meadow every morning.** The seed is the date (`src/game/day.ts`), so
 the scenery, the hills and the whole herd are re-rolled each day. Two things
 make a date usable as a shared seed. It is read in **one fixed timezone**, never

@@ -18,6 +18,7 @@ import * as THREE from 'three';
 import type { AssetLibrary } from '../engine/assets.ts';
 import type { Pose } from '../net/protocol.ts';
 import { PEER_TIMEOUT } from '../net/protocol.ts';
+import { Marker, THEIRS } from './marker.ts';
 import { Unicorn } from './unicorn.ts';
 import type { UnicornVariant } from './variant.ts';
 
@@ -32,6 +33,8 @@ const SNAP_DISTANCE = 6;
 
 interface Visitor {
   unicorn: Unicorn;
+  /** Floats above them with their name on it, so you know whose pony that is. */
+  marker: Marker;
   variantKey: string;
   target: Pose;
   /** Seconds since this peer last said anything. */
@@ -86,7 +89,9 @@ export class Visitors {
     }
 
     const unicorn = this.build(variant, pose.x, pose.y, pose.f);
-    this.here.set(id, { unicorn, variantKey: key, target: pose, silent: 0 });
+    const marker = new Marker(this.assets, THEIRS, true);
+    this.group.add(marker.group);
+    this.here.set(id, { unicorn, marker, variantKey: key, target: pose, silent: 0 });
     this.onArrive?.(variant);
     this.onCount?.(this.here.size);
   }
@@ -118,13 +123,17 @@ export class Visitors {
     const visitor = this.here.get(id);
     if (!visitor) return;
     visitor.unicorn.dispose();
+    visitor.marker.dispose();
     this.here.delete(id);
     this.onCount?.(this.here.size);
   }
 
   /** Sends everyone home, e.g. when the relay drops. */
   clear(): void {
-    for (const visitor of this.here.values()) visitor.unicorn.dispose();
+    for (const visitor of this.here.values()) {
+      visitor.unicorn.dispose();
+      visitor.marker.dispose();
+    }
     this.here.clear();
     this.onCount?.(0);
   }
@@ -152,6 +161,7 @@ export class Visitors {
 
       unicorn.facing = target.f;
       unicorn.update(dt, target.m);
+      visitor.marker.follow(unicorn, dt);
     }
   }
 }

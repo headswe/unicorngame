@@ -473,6 +473,17 @@
     "tintable": true
   },
   {
+    "id": "pekare",
+    "kind": "prop",
+    "label": "Pekare",
+    "url": "assets/parts/pekare.png",
+    "width": 371,
+    "height": 512,
+    "aspect": 0.724609375,
+    "worldHeight": 0.42,
+    "tintable": true
+  },
+  {
     "id": "moln_stort",
     "kind": "cloud",
     "label": "Moln",

@@ -431,6 +431,26 @@ export const PARTS: PartSpec[] = [
       `patterns. ${TINTABLE} ${ISOLATED}`,
   },
 
+  /**
+   * The "this one is yours" marker that floats over a player's unicorn.
+   *
+   * Drawn near-white so it can be tinted: the child's own gets one colour and
+   * each visiting friend another, which is the whole point of it.
+   */
+  {
+    id: 'pekare',
+    kind: 'prop',
+    label: 'Pekare',
+    worldHeight: 0.42,
+    prompt:
+      `${STYLE}. A single plump downward-pointing arrow, seen straight on, ` +
+      `like a friendly signpost marker hanging in the air. It has a wide ` +
+      `rounded top that tapers to a soft rounded point at the bottom, gently ` +
+      `puffy rather than sharp, with a small soft highlight near the top. ` +
+      `Just the arrow on its own — no pole, no string, no text, no other ` +
+      `shapes. ${TINTABLE} ${ISOLATED}`,
+  },
+
   // --- sky ------------------------------------------------------------------
   {
     id: 'moln_stort',

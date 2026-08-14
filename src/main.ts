@@ -27,6 +27,7 @@ import {
 } from './game/variant.ts';
 import { meadowDay, meadowSeed } from './game/day.ts';
 import { EAT_RADIUS } from './game/treats.ts';
+import { Marker, MINE } from './game/marker.ts';
 import { Visitors } from './game/visitors.ts';
 import { World, WORLD_BOUNDS, SHOVEL_SPOT, TABLE_SPOT } from './game/world.ts';
 import { Session } from './net/session.ts';
@@ -242,6 +243,12 @@ async function start(): Promise<void> {
   // --- the shared meadow ----------------------------------------------------
   // Everyone generates the same field from the same seed, so the only things
   // worth sending are the children themselves and the spells they cast.
+  // Eighteen residents wander this field and one of them may well be wearing a
+  // coat like yours, so the child's own unicorn is marked. It follows whatever
+  // `player` currently is, which means going through the wardrobe cannot lose it.
+  const myMarker = new Marker(assets, MINE, false);
+  world.scene.add(myMarker.group);
+
   const visitors = new Visitors(assets);
   world.scene.add(visitors.group);
   // Joining a busy meadow introduces everyone at once, and three fanfares in
@@ -534,6 +541,7 @@ async function start(): Promise<void> {
       controller.update(dt, input, camera, viewport);
     }
     world.update(dt);
+    myMarker.follow(player, dt);
     session.update(dt);
     followPlayer(dt, false);
     world.backdrop.update(dt, camera.camera, camera.extents(viewport));
