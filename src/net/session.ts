@@ -52,6 +52,10 @@ export interface SessionCallbacks {
   onCleanedList(poops: string[]): void;
   /** The meadow as the relay has it, handed over on connecting. */
   onState(state: StateMessage): void;
+  /** Who lives here, as seeds. Arrives on connecting and whenever it changes. */
+  onRoster(seeds: string[]): void;
+  /** Where the herd is, ten times a second. */
+  onHerd(poses: Array<[number, number, number, number]>): void;
   onStatus(status: NetStatus): void;
 }
 
@@ -173,9 +177,18 @@ export class Session {
   }
 
   private receive(message: NetMessage): void {
-    // The relay's own greeting is the one message with no sender.
+    // The relay speaks for itself for these three: the meadow's state, who
+    // lives in it, and where they are. None carry a sender.
     if (message.t === 'state') {
       this.callbacks.onState(message);
+      return;
+    }
+    if (message.t === 'roster') {
+      this.callbacks.onRoster(message.ponies);
+      return;
+    }
+    if (message.t === 'herd') {
+      this.callbacks.onHerd(message.ponies);
       return;
     }
     // A relay broadcasts to everyone, so our own messages can come back.

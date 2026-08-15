@@ -30,6 +30,7 @@ import { EAT_RADIUS } from './game/treats.ts';
 import { Marker, MINE } from './game/marker.ts';
 import { Visitors } from './game/visitors.ts';
 import { World, WORLD_BOUNDS, SHOVEL_SPOT, TABLE_SPOT } from './game/world.ts';
+import { Herd, HERD_HZ, RESIDENTS, WORLD_BOUNDS as SIM_BOUNDS } from '../server/herd.js';
 import { Session } from './net/session.ts';
 import { LoopbackTransport, SocketTransport, type Transport } from './net/transport.ts';
 
@@ -263,6 +264,46 @@ async function start(): Promise<void> {
     hud.announce(`${who.name} kom på besök!`);
   };
 
+  // --- simulating the herd when nobody else will ----------------------------
+  //
+  // "Is anyone simulating?" is not the same question as "is the socket up". A
+  // BroadcastChannel between two tabs reports itself online quite happily and
+  // has no server behind it at all, so asking the transport would leave the
+  // meadow standing perfectly still. The honest test is whether snapshots are
+  // actually arriving.
+  let localHerd: Herd | null = null;
+  let herdDue = 0;
+  let lastSnapshot = 0;
+
+  /** No word from a simulation for this long and this browser takes over. */
+  const TAKE_OVER_AFTER = 2000;
+
+  const startLocalHerd = (): void => {
+    if (localHerd) return;
+    localHerd = new Herd({ seed: meadowSeed(), count: RESIDENTS, bounds: SIM_BOUNDS });
+    world.herd.setRoster(localHerd.roster());
+  };
+
+  /** Runs the herd here, at the same rate the relay would send it. */
+  const tickLocalHerd = (dt: number): void => {
+    if (performance.now() - lastSnapshot < TAKE_OVER_AFTER) return;
+    startLocalHerd();
+    if (!localHerd) return;
+    herdDue -= dt;
+    if (herdDue > 0) return;
+
+    const step = 1 / HERD_HZ;
+    herdDue = step;
+    const { poops, eaten } = localHerd.tick(step, Date.now() / 1000, world.treats.forHerd());
+    world.herd.apply(localHerd.snapshot());
+    for (const poop of poops) {
+      if (world.poop.spawn(poop.id, poop.x, poop.y)) sfx.plop();
+    }
+    for (const berry of eaten) {
+      if (world.treats.eatById(berry)) sfx.munch();
+    }
+  };
+
   const relay = import.meta.env.VITE_ANGEN_RELAY as string | undefined;
   // With no relay configured the game still plays with itself: a BroadcastChannel
   // joins up two tabs on the same machine. That is how this was built and
@@ -302,6 +343,15 @@ async function start(): Promise<void> {
       // eggs still waiting, and the foals from earlier days. Everything else —
       // the field, the herd, the residents' droppings — regenerates from the
       // clock and needs nothing here.
+      onRoster: (seeds) => {
+        // Somebody out there is simulating, so stop doing it here.
+        localHerd = null;
+        world.herd.setRoster(seeds);
+      },
+      onHerd: (poses) => {
+        lastSnapshot = performance.now();
+        world.herd.apply(poses);
+      },
       onState: (state) => {
         // Both sides run the same rule, so this should never differ outside a
         // clock being badly wrong. Worth saying out loud if it ever does.
@@ -315,7 +365,8 @@ async function start(): Promise<void> {
         for (const egg of state.eggs) {
           applySpell('trollagg', egg.x, egg.y, egg.seed, egg.since, egg.foal, false, now - egg.since);
         }
-        for (const born of state.foals) world.settle(born.foal, born.x, born.y);
+        // Foals are not placed here: they are already in the herd the relay
+        // sends, which is the one place that decides who is in this field.
       },
       onStatus: (status) => {
         if (status === 'online') {
@@ -328,6 +379,9 @@ async function start(): Promise<void> {
     },
   );
   session.start();
+  // Start out simulating for ourselves. The first snapshot from a relay hands
+  // the job over; if none ever comes, this browser simply keeps it.
+  startLocalHerd();
 
   // --- spelling game --------------------------------------------------------
   const spelling = new Spelling(container, assets, {
@@ -540,6 +594,7 @@ async function start(): Promise<void> {
       caretaking(dt);
       controller.update(dt, input, camera, viewport);
     }
+    tickLocalHerd(dt);
     world.update(dt);
     myMarker.follow(player, dt);
     session.update(dt);

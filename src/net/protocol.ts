@@ -162,6 +162,29 @@ export interface StateMessage {
   foals: Array<{ foal: UnicornVariant; x: number; y: number }>;
 }
 
+/**
+ * Who lives in the meadow, as a list of seeds.
+ *
+ * Only the seeds: a seed rebuilds the whole unicorn locally through the same
+ * generator that made it, so a herd of eighteen costs eighteen short strings
+ * rather than eighteen descriptions of a body, a horn, a mane and five colours.
+ */
+export interface RosterMessage {
+  t: 'roster';
+  day: string;
+  ponies: string[];
+}
+
+/**
+ * Where the herd is, ten times a second. Index matches the roster, which is why
+ * there are no names in here — `[x, y, facing, moving]` and nothing else.
+ */
+export interface HerdMessage {
+  t: 'herd';
+  now: number;
+  ponies: Array<[number, number, number, number]>;
+}
+
 export interface ByeMessage {
   t: 'bye';
   id: string;
@@ -175,6 +198,8 @@ export type NetMessage =
   | CleanMessage
   | EatenMessage
   | HatchedMessage
+  | RosterMessage
+  | HerdMessage
   | StateMessage
   | ByeMessage;
 

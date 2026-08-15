@@ -53,6 +53,11 @@ function today() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: TIMEZONE }).format(shifted);
 }
 
+/** The world seed for the current day. Must match meadowSeed in src/game/day.ts. */
+export function meadowSeed() {
+  return `angen-${today()}`;
+}
+
 function emptyDay(day) {
   return { day, cleaned: [], poops: [], eggs: [], foals: [] };
 }

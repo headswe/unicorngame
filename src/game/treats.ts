@@ -162,6 +162,17 @@ export class TreatField {
     return best;
   }
 
+  /**
+   * The berries as the herd simulation wants them, for when this browser is the
+   * one doing the simulating. Marking one eaten here is how the simulation says
+   * a pony got it.
+   */
+  forHerd(): Array<{ id: string; x: number; y: number; landsAt: number; eaten: boolean }> {
+    return this.treats
+      .filter((t) => t.eaten === null)
+      .map((t) => ({ id: t.id, x: t.x, y: t.y, landsAt: t.landsAt, eaten: false }));
+  }
+
   /** Eats a named berry, wherever it is. Used when a friend eats one. */
   eatById(id: string): boolean {
     const treat = this.treats.find((t) => t.id === id);

@@ -10,27 +10,28 @@
 import * as THREE from 'three';
 
 import type { AssetLibrary, Part } from '../engine/assets.ts';
-import { hash01, hashSeed, makeRng, type Rng } from '../engine/rng.ts';
+import { makeRng, type Rng } from '../engine/rng.ts';
 import { createSprite, type Sprite } from '../engine/sprite.ts';
 import { depthOrder, PART_ORDER, projectY } from '../engine/view.ts';
 import { Backdrop } from './backdrop.ts';
 import { EggNest, HATCH_TIME } from './eggs.ts';
 import { createGround } from './ground.ts';
-import { WanderingUnicorn } from './npc.ts';
-import { clamp, type WorldBounds } from './player.ts';
+import { WORLD_BOUNDS } from '../../server/herd.js';
+import { HerdView } from './herd-view.ts';
+import { clamp } from './player.ts';
 import { shadowTexture } from './shadow.ts';
 import { PoopField } from './poop.ts';
-import { TreatField, EAT_RADIUS } from './treats.ts';
+import { TreatField } from './treats.ts';
 import { Unicorn } from './unicorn.ts';
 import { randomSeed, randomVariant, type UnicornVariant } from './variant.ts';
 
-/** Where the unicorns are allowed to walk. */
-export const WORLD_BOUNDS: WorldBounds = {
-  minX: -42,
-  maxX: 42,
-  minY: 1,
-  maxY: 36,
-};
+/**
+ * Where the unicorns are allowed to walk.
+ *
+ * Re-exported from the simulation rather than declared here, so the relay and
+ * the browser cannot come to disagree about the size of the field.
+ */
+export { WORLD_BOUNDS };
 
 /**
  * Where the grass stops and the hills begin. Kept a few units beyond the
@@ -56,45 +57,6 @@ export const TABLE_SPOT = { x: -9.5, y: 14.5 };
 
 /** Nothing large is planted within this radius of the letter table either. */
 const TABLE_CLEARING = 4;
-
-/**
- * Presents are generated from the clock, the same way the herd's positions are,
- * so both children find the same poop in the same places without a word passing
- * between them.
- *
- * Every resident gets one chance per slot to leave something. Which slots, and
- * exactly when within them, is hashed from the resident and the slot number, so
- * the whole day's droppings can be worked out from scratch by a browser that
- * only just opened.
- */
-const POOP_SLOT = 40;
-
-/** How likely a resident is to leave something in any given slot. */
-const POOP_CHANCE = 0.03;
-
-/**
- * Presents older than this are not replayed when the game opens. A meadow that
- * greets a child with nine hours of accumulated poop is a chore, not a game;
- * the last stretch is enough to give them something to do.
- */
-const POOP_BACKLOG = 20 * 60;
-
-/** How far a unicorn will notice a strawberry and come over for it. */
-const TREAT_SMELL = 9;
-
-/**
- * Feeding is decided on this grid, in seconds, rather than once a frame.
- *
- * Snapping only the *recorded* time was not enough: two browsers whose frames
- * fall either side of a grid line still decided at different moments and from
- * different places. Taking the decision itself on the grid — and telling the
- * herd the grid's time, not the frame's — is what makes two machines choose the
- * same berry for the same pony.
- */
-const FEED_GRID = 0.1;
-
-/** Most missed feeding ticks replayed at once — two seconds' worth. */
-const CATCH_UP_TICKS = 20;
 
 interface ScatterSpec {
   id: string;
@@ -133,7 +95,7 @@ export class World {
   readonly scene = new THREE.Scene();
   readonly backdrop: Backdrop;
   readonly player: Unicorn;
-  readonly residents: WanderingUnicorn[] = [];
+  readonly herd: HerdView;
   readonly poop: PoopField;
   readonly treats: TreatField;
   readonly eggs: EggNest;
@@ -148,10 +110,6 @@ export class World {
   onHatch: ((id: string, variant: UnicornVariant, x: number, y: number) => void) | null = null;
 
   private readonly decor: THREE.Group = new THREE.Group();
-  /** Next present slot to consider; null until the first frame catches up. */
-  private poopSlot: number | null = null;
-  /** Last feeding grid tick acted on, so decisions happen on the grid. */
-  private fedTick = -1;
   private shovelSprite: THREE.Object3D | null = null;
   /** False only when the sprite is missing, which keeps the hint honest. */
   hasLetterTable = false;
@@ -190,7 +148,8 @@ export class World {
     this.player.y = SPAWN.y;
     this.scene.add(this.player.group);
 
-    this.populate(rng);
+    this.herd = new HerdView(assets);
+    this.scene.add(this.herd.group);
   }
 
   private plant(part: Part, x: number, y: number, height: number, withShadow: boolean): void {
@@ -250,44 +209,6 @@ export class World {
   }
 
   /**
-   * Adds a unicorn to the herd. Residents and their poop clocks are parallel
-   * arrays, so joining the meadow has to go through one place or the two will
-   * drift apart.
-   */
-  private addResident(
-    unicorn: Unicorn,
-    wanderSeed: number,
-    roam: number,
-  ): void {
-    this.scene.add(unicorn.group);
-    this.residents.push(
-      new WanderingUnicorn(unicorn, wanderSeed, unicorn.x, unicorn.y, roam, WORLD_BOUNDS),
-    );
-  }
-
-  private populate(rng: Rng): void {
-    const count = 18;
-    for (let i = 0; i < count; i++) {
-      const variant = randomVariant(this.assets, `granne-${i}-${rng.int(1e6)}`);
-      const unicorn = new Unicorn(variant, this.assets);
-
-      // Spread them over the field, but never right on top of the player.
-      let x = 0;
-      let y = 0;
-      do {
-        x = rng.range(WORLD_BOUNDS.minX + 3, WORLD_BOUNDS.maxX - 3);
-        y = rng.range(WORLD_BOUNDS.minY + 1, WORLD_BOUNDS.maxY - 2);
-      } while (Math.hypot(x - SPAWN.x, y - SPAWN.y) < 5);
-
-      unicorn.x = x;
-      unicorn.y = y;
-      unicorn.facing = rng.chance(0.5) ? 1 : -1;
-      // Staggered, so the meadow does not fill up all at once at the start.
-      this.addResident(unicorn, rng.int(1e9), rng.range(3, 9));
-    }
-  }
-
-  /**
    * Rolls the foal an egg would contain.
    *
    * Separate from laying it because whoever casts the spell decides what is
@@ -332,41 +253,19 @@ export class World {
     );
 
     const hatchIn = rng.range(HATCH_TIME.min, HATCH_TIME.max) - elapsed;
-    // Already due: it opened while nobody was looking, so the foal is simply
-    // here rather than being made to hatch all over again.
-    if (hatchIn <= 0) {
-      this.settle(foal, eggX, eggY);
-      return true;
-    }
+    // Already due: it opened while nobody was looking. The foal is in the herd
+    // the simulation sends us, so there is nothing to put down here.
+    if (hatchIn <= 0) return true;
     return this.eggs.lay(id, eggX, eggY, foal, hatchIn);
   }
 
-  /** An egg has opened: the foal joins the herd where the shell was. */
-  private hatch(id: string, variant: UnicornVariant, x: number, y: number): void {
-    this.settle(variant, x, y, true);
-    this.onHatch?.(id, variant, x, y);
-  }
-
   /**
-   * Puts a foal into the herd. Used both by an egg opening in front of the
-   * child and by one that opened while they were away, which is why the
-   * celebrating is optional.
+   * An egg has opened. Only announces it — the foal joins the herd through the
+   * simulation, the same way every other pony does, so there is exactly one
+   * place that decides who is in this field.
    */
-  settle(variant: UnicornVariant, x: number, y: number, celebrate = false): void {
-    const unicorn = new Unicorn(variant, this.assets);
-    unicorn.x = x;
-    unicorn.y = y;
-    unicorn.facing = hash01(hashSeed(variant.seed), 3) < 0.5 ? 1 : -1;
-    // Arrives mid-bounce, which is the first thing you see it do.
-    if (celebrate) unicorn.hop();
-    this.addResident(
-      unicorn,
-      // Derived from the foal rather than rolled, so a hatchling rambles the
-      // same way on every screen that watched it hatch.
-      hashSeed(variant.seed),
-      // Newborns keep close to where they hatched.
-      4,
-    );
+  private hatch(id: string, variant: UnicornVariant, x: number, y: number): void {
+    this.onHatch?.(id, variant, x, y);
   }
 
   /** Casts strawberry rain around a point. */
@@ -446,105 +345,13 @@ export class World {
   }
 
   update(dt: number): void {
-    // The herd's positions are a function of the wall clock, so every browser
-    // showing this meadow draws it the same way — including one that opened
-    // half an hour later than the other.
     const now = Date.now() / 1000;
 
-    for (const resident of this.residents) resident.update(dt, now);
-
-    this.dropPresents(now);
+    this.herd.update(dt);
     this.poop.update(dt);
     this.treats.update(dt, now);
-    // On the grid, with the grid's time, and never skipping one. A browser
-    // running slowly — or parked in a background tab, where the frame loop is
-    // throttled to a crawl — must still take the same decisions at the same
-    // moments as one running at sixty, or the two herds part company the
-    // instant a shower starts.
-    const tick = Math.floor(now / FEED_GRID);
-    if (this.fedTick < 0) this.fedTick = tick - 1;
-    for (let t = Math.max(this.fedTick + 1, tick - CATCH_UP_TICKS); t <= tick; t++) {
-      this.feedResidents(t * FEED_GRID);
-    }
-    this.fedTick = tick;
     this.growBlooms(dt);
-    // Last, because a hatching egg adds to `residents` and nothing above may
-    // still be part-way through iterating it.
     this.eggs.update(dt);
-  }
-
-  /**
-   * Works out which presents exist by now and puts down any that are missing.
-   *
-   * Slots are scanned once each, from a cursor, so the cost is a short catch-up
-   * on the first frame and almost nothing after that. Because a resident's
-   * position can be asked for at any past moment, each present lands exactly
-   * where that pony was standing when it left it.
-   */
-  private dropPresents(now: number): void {
-    const current = Math.floor(now / POOP_SLOT);
-    // First frame: replay only the recent past, not the whole day.
-    const from = this.poopSlot ?? Math.floor((now - POOP_BACKLOG) / POOP_SLOT);
-
-    for (let slot = from; slot <= current; slot++) {
-      for (const resident of this.residents) {
-        if (hash01(resident.seed, slot) >= POOP_CHANCE) continue;
-
-        // Somewhere inside the slot, so eighteen ponies do not go at once.
-        const when = (slot + hash01(resident.seed, slot ^ 0x5bd1)) * POOP_SLOT;
-        if (when > now) continue;
-
-        const id = `${resident.seed}:${slot}`;
-        if (this.poop.knows(id)) continue;
-
-        const at = resident.positionAt(when);
-        if (this.poop.spawn(id, at.x - 0.55, at.y - 0.15)) {
-          // Only the ones that have just happened are worth a noise; the
-          // catch-up ones were dropped while nobody was watching.
-          if (now - when < 2) this.onPoop?.();
-        }
-      }
-    }
-    this.poopSlot = current + 1;
-  }
-
-  /** Unicorns notice strawberries nearby, walk over, and eat them. */
-  /**
-   * Unicorns notice strawberries nearby, walk over, and eat them.
-   *
-   * Every decision here is taken from positions that are themselves functions
-   * of the clock, and the walk that follows is too — so two browsers with the
-   * same berries send the same ponies to the same ones. Nothing about feeding
-   * goes over the wire.
-   */
-  private feedResidents(now: number): void {
-    if (!this.treats.count) {
-      // Nothing left to chase: everyone drifts back onto the shared path.
-      for (const resident of this.residents) resident.stopChasing(now);
-      return;
-    }
-
-    for (const resident of this.residents) {
-      const unicorn = resident.unicorn;
-      const treat = this.treats.nearest(unicorn.x, unicorn.y, TREAT_SMELL);
-      if (!treat) {
-        resident.stopChasing(now);
-        continue;
-      }
-
-      const reached = Math.hypot(treat.x - unicorn.x, treat.y - unicorn.y) <= EAT_RADIUS;
-      // Standing over one that is still in the air: wait for it rather than
-      // eating it out of the sky.
-      if (reached && treat.landed) {
-        if (this.treats.eat(treat)) {
-          unicorn.hop();
-          this.onEat?.();
-        }
-        resident.stopChasing(now);
-      } else if (!reached) {
-        resident.goTo(treat.x, treat.y, now);
-      }
-    }
   }
 
   private growBlooms(dt: number): void {
