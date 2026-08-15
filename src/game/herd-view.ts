@@ -16,10 +16,10 @@
 import * as THREE from 'three';
 
 import type { AssetLibrary } from '../engine/assets.ts';
-import type { PonyPose } from '../../server/herd.js';
+import { MOOD, type PonyPose } from '../../server/herd.js';
 import { createSprite, type Sprite } from '../engine/sprite.ts';
 import { depthOrder, PART_ORDER, projectY } from '../engine/view.ts';
-import { Unicorn } from './unicorn.ts';
+import { Unicorn, type Mood } from './unicorn.ts';
 import { randomVariant } from './variant.ts';
 
 /**
@@ -36,6 +36,13 @@ const CHEER_TIME = 1.3;
 
 /** How near a tap has to land on a pony to count as patting it. */
 export const PET_RADIUS = 1.2;
+
+/** The simulation's mood numbers, as the body understands them. */
+function moodOf(mood: number): Mood {
+  if (mood === MOOD.HAPPY) return 'pleased';
+  if (mood === MOOD.LOOKING) return 'watching';
+  return 'calm';
+}
 
 interface Member {
   seed: string;
@@ -151,6 +158,10 @@ export class HerdView {
       member.targetY = pose[1];
       member.facing = pose[2] < 0 ? -1 : 1;
       member.moving = pose[3] === 1;
+      // The simulation knows perfectly well when a pony has noticed a child or
+      // is pleased about a strawberry; until now the drawing threw that away
+      // and every pony in the meadow stood exactly as blankly as every other.
+      member.unicorn.mood = moodOf(pose[4]);
     }
   }
 
