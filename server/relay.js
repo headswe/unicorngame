@@ -86,7 +86,11 @@ function broadcast(message) {
 let lastTick = Date.now();
 const ticker = setInterval(() => {
   const now = Date.now() / 1000;
-  const dt = Math.min(1, now - lastTick / 1000);
+  // Capped at a tick and a half. setInterval drifts under load, and an
+  // oversized step moves a pony further than its own walking speed allows —
+  // which arrives on the children's screens as a lurch. Better that a busy
+  // moment makes the meadow run a hair slow than that it teleports.
+  const dt = Math.min(1.5 / HERD_HZ, now - lastTick / 1000);
   lastTick = Date.now();
 
   // A new morning: a new field deserves a new herd, but the ponies the children

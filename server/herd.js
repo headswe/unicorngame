@@ -38,14 +38,15 @@ export const WORLD_BOUNDS = { minX: -42, maxX: 42, minY: 1, maxY: 36 };
 /** How many ponies live in the meadow before anybody hatches one. */
 export const RESIDENTS = 18;
 
-/** One walk plus one graze, in seconds. */
-const LEG_SECONDS = 11;
-/** A leg spends somewhere in this range walking; the rest is standing still. */
-const WALK_FRACTION = { min: 0.35, max: 0.62 };
-/** World units a second on a detour after something. */
+/** World units a second at an amble, and at an eager trot after a berry. */
+const WANDER_SPEED = 1.3;
 const CHASE_SPEED = 1.9;
-/** Seconds spent easing back onto the wandering path after a detour. */
-const REJOIN_TIME = 1.6;
+
+/** How long a pony grazes where it stopped before choosing somewhere new. */
+const REST = { min: 2.5, max: 9 };
+
+/** Close enough to count as arrived. */
+const ARRIVED = 0.25;
 
 /** How far a pony will notice a strawberry and come over for it. */
 export const TREAT_SMELL = 9;
@@ -98,13 +99,15 @@ const ease = (t) => t * t * (3 - 2 * t);
  * @property {number} y
  * @property {1|-1}   facing
  * @property {boolean} moving
- * @property {{x:number,y:number}|null} chase
- * @property {number} rejoin  seconds left of easing back onto the path
+ * @property {{x:number,y:number}|null} chase   a berry worth leaving the amble for
+ * @property {{x:number,y:number}|null} target  where it is ambling to
+ * @property {number} leg      counts the places it has ambled to, for the hashing
+ * @property {number} restUntil unix seconds it will stand here until
  * @property {number} poopSlot last slot considered
  */
 
-/** Where a pony rests at the end of leg `leg`. */
-function restingPlace(pony, leg, bounds) {
+/** Somewhere in this pony's patch to head for next. */
+function somewhereNearHome(pony, leg, bounds) {
   const angle = hash01(pony.n, leg * 3) * Math.PI * 2;
   // Square-rooted so resting places spread evenly over the patch rather than
   // bunching in the middle of it.
@@ -113,26 +116,6 @@ function restingPlace(pony, leg, bounds) {
     x: clamp(pony.homeX + Math.cos(angle) * distance, bounds.minX, bounds.maxX),
     y: clamp(pony.homeY + Math.sin(angle) * distance, bounds.minY, bounds.maxY),
   };
-}
-
-/** Where a pony's ramble has it at time `now`, ignoring any detour. */
-function wanderTo(pony, now, bounds) {
-  // Each pony starts its cycle at its own moment, so they do not all set off
-  // on the same beat.
-  const t = now + hash01(pony.n, 0xffff) * LEG_SECONDS;
-  const leg = Math.floor(t / LEG_SECONDS);
-  const through = t / LEG_SECONDS - leg;
-
-  const from = restingPlace(pony, leg, bounds);
-  const to = restingPlace(pony, leg + 1, bounds);
-
-  const walkFor =
-    WALK_FRACTION.min +
-    hash01(pony.n, leg * 3 + 2) * (WALK_FRACTION.max - WALK_FRACTION.min);
-
-  if (through >= walkFor) return to;
-  const k = ease(through / walkFor);
-  return { x: from.x + (to.x - from.x) * k, y: from.y + (to.y - from.y) * k };
 }
 
 export class Herd {
@@ -168,10 +151,13 @@ export class Herd {
       facing: hash01(n, 104) < 0.5 ? -1 : 1,
       moving: false,
       chase: null,
-      rejoin: 0,
+      target: null,
+      leg: 0,
+      // Staggered, so eighteen ponies do not all set off on the same beat.
+      restUntil: Date.now() / 1000 + hash01(n, 105) * REST.max,
       poopSlot: -1,
     };
-    const at = wanderTo(pony, Date.now() / 1000, b);
+    const at = somewhereNearHome(pony, 0, b);
     pony.x = at.x;
     pony.y = at.y;
     this.ponies.push(pony);
@@ -233,37 +219,44 @@ export class Herd {
       if (target && best <= EAT_RADIUS && now >= target.landsAt) {
         target.eaten = true;
         eaten.push(target.id);
+        // Finished with it. Stand a moment where it was eaten and then carry on
+        // from here — there is nowhere it is supposed to be.
         pony.chase = null;
-        pony.rejoin = REJOIN_TIME;
+        pony.target = null;
+        pony.restUntil = now + REST.min;
       } else if (target && best > EAT_RADIUS) {
         pony.chase = { x: target.x, y: target.y };
+        pony.target = null;
       } else if (!target && pony.chase) {
+        // Somebody else got it. Same again: no snapping back anywhere.
         pony.chase = null;
-        pony.rejoin = REJOIN_TIME;
+        pony.target = null;
+        pony.restUntil = now + 0.4;
       }
 
-      if (pony.chase) {
-        const dx = pony.chase.x - pony.x;
-        const dy = pony.chase.y - pony.y;
+      const goal = pony.chase ?? pony.target;
+      if (goal) {
+        const dx = goal.x - pony.x;
+        const dy = goal.y - pony.y;
         const distance = Math.hypot(dx, dy);
-        if (distance > 0.01) {
-          const step = Math.min(distance, CHASE_SPEED * dt);
+        if (distance <= ARRIVED) {
+          if (pony.chase) {
+            // Standing over a berry that has not landed yet: wait for it.
+          } else {
+            pony.target = null;
+            pony.restUntil =
+              now + REST.min + hash01(pony.n, pony.leg + 0x600d) * (REST.max - REST.min);
+          }
+        } else {
+          const speed = pony.chase ? CHASE_SPEED : WANDER_SPEED;
+          const step = Math.min(distance, speed * dt);
           pony.x += (dx / distance) * step;
           pony.y += (dy / distance) * step;
         }
-      } else {
-        const path = wanderTo(pony, now, b);
-        if (pony.rejoin > 0) {
-          // Slide back onto the ramble rather than snapping, so a pony that
-          // wandered off for a strawberry does not teleport home.
-          pony.rejoin = Math.max(0, pony.rejoin - dt);
-          const blend = 1 - pony.rejoin / REJOIN_TIME;
-          pony.x += (path.x - pony.x) * blend;
-          pony.y += (path.y - pony.y) * blend;
-        } else {
-          pony.x = path.x;
-          pony.y = path.y;
-        }
+      } else if (now >= pony.restUntil) {
+        // Done grazing: pick somewhere else in the patch and amble over.
+        pony.leg += 1;
+        pony.target = somewhereNearHome(pony, pony.leg, b);
       }
 
       pony.x = clamp(pony.x, b.minX, b.maxX);
