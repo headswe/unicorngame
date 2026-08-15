@@ -451,6 +451,16 @@ export const PARTS: PartSpec[] = [
       `shapes. ${TINTABLE} ${ISOLATED}`,
   },
 
+  prop(
+    'hjartan',
+    'Hjärtan',
+    'Three small puffy hearts of slightly different sizes floating in a loose ' +
+      'cluster, the biggest at the bottom, in warm pink and rose with tiny ' +
+      'white shine spots. Soft rounded storybook hearts, cheerful and simple. ' +
+      'Nothing else in the picture.',
+    0.5,
+  ),
+
   // --- sky ------------------------------------------------------------------
   {
     id: 'moln_stort',

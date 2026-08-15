@@ -68,6 +68,15 @@ let herdDay = meadow.snapshot().day;
 /** Berries currently on the grass, so the ponies know what to go after. */
 let treats = [];
 
+/**
+ * Where each child is, so the ponies can notice them.
+ *
+ * The relay reads this off the pose messages it is already forwarding, which is
+ * the whole trick: the herd learns about the children without anybody sending
+ * anything extra.
+ */
+const players = new Map();
+
 /** Puts the foals the children have hatched back into the herd. */
 function stockFoals() {
   for (const born of meadow.snapshot().foals) {
@@ -108,7 +117,7 @@ const ticker = setInterval(() => {
   // forgotten shower does not keep the herd walking in circles forever.
   treats = treats.filter((tr) => !tr.eaten && now - tr.bornAt < 90);
 
-  const { poops, eaten } = herd.tick(dt, now, treats);
+  const { poops, eaten, cheers } = herd.tick(dt, now, treats, [...players.values()]);
 
   // Nobody is watching: still simulate, so the meadow has moved on when they
   // come back, but do not bother shouting about it.
@@ -121,6 +130,7 @@ const ticker = setInterval(() => {
     broadcast(message);
   }
   for (const id of eaten) broadcast({ t: 'eaten', id: 'angen', berry: id });
+  if (cheers.length) broadcast({ t: 'cheer', ponies: cheers });
 }, 1000 / HERD_HZ);
 ticker.unref?.();
 
@@ -153,7 +163,7 @@ wss.on('connection', (socket) => {
     try {
       const message = JSON.parse(data.toString());
       meadow.observe(message);
-      absorb(message);
+      absorb(message, socket);
     } catch {
       // Not JSON, or not something worth acting on. Relay it anyway.
     }
@@ -166,7 +176,11 @@ wss.on('connection', (socket) => {
     }
   });
 
-  socket.on('close', () => lobby.delete(socket));
+  socket.on('close', () => {
+    lobby.delete(socket);
+    // Forget where they were, or the ponies keep following a ghost.
+    if (socket.peerId) players.delete(socket.peerId);
+  });
   // A socket that errors is a socket that is leaving.
   socket.on('error', () => socket.terminate());
 });
@@ -199,8 +213,21 @@ wss.on('close', () => {
  * consequences. A strawberry shower is the one that matters — the ponies cannot
  * chase berries they have never heard of.
  */
-function absorb(message) {
-  if (message?.t === 'spell' && message.spell === 'jordgubbsregn') {
+function absorb(message, socket) {
+  if (message?.t === 'pose' && message.pose) {
+    // Remembering which socket a child speaks through is what lets the ponies
+    // stop following them the moment the laptop closes.
+    if (socket) socket.peerId = message.id;
+    players.set(message.id, { id: message.id, x: message.pose.x, y: message.pose.y });
+  } else if (message?.t === 'bye') {
+    players.delete(message.id);
+  } else if (message?.t === 'pet') {
+    // A child reached out to one. The herd decides whether they were actually
+    // close enough, so a hopeful tap from across the meadow does nothing.
+    if (herd.pet(message.pony, players.get(message.id), Date.now() / 1000)) {
+      broadcast({ t: 'cheer', ponies: [message.pony] });
+    }
+  } else if (message?.t === 'spell' && message.spell === 'jordgubbsregn') {
     treats.push(
       ...scatterTreats(message.x, message.y, 14, 5.5, makeRng(message.seed), message.seed, message.at),
     );

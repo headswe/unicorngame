@@ -32,12 +32,17 @@ export interface ScatteredTreat extends HerdTreat {
   bornAt: number;
 }
 
-/** `[x, y, facing, moving]`, in roster order. */
-export type PonyPose = [number, number, number, number];
+/** `[x, y, facing, moving, mood]`, in roster order. */
+export type PonyPose = [number, number, number, number, number];
+
+/** What a pony is feeling, for the client to draw. */
+export declare const MOOD: { CALM: 0; LOOKING: 1; HAPPY: 2 };
 
 export interface HerdEvents {
   poops: Array<{ id: string; x: number; y: number }>;
   eaten: string[];
+  /** Roster indices of ponies that are pleased about something. */
+  cheers: number[];
 }
 
 export declare class Herd {
@@ -49,7 +54,13 @@ export declare class Herd {
   add(seed: string, homeX?: number, homeY?: number): unknown;
   roster(): string[];
   snapshot(): PonyPose[];
-  tick(dt: number, now: number, treats?: HerdTreat[]): HerdEvents;
+  tick(
+    dt: number,
+    now: number,
+    treats?: HerdTreat[],
+    players?: Array<{ id: string; x: number; y: number }>,
+  ): HerdEvents;
+  pet(index: number, player: { id: string; x: number; y: number }, now: number): boolean;
 }
 
 export declare function scatterTreats(

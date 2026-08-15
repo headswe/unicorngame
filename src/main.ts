@@ -45,6 +45,9 @@ const MAX_STEP = 1 / 20;
 /** How close the player has to get to pick the shovel up off the grass. */
 const SHOVEL_PICKUP = 1.6;
 
+/** How close you have to stand to pat a pony. Matches NOTICE in the herd. */
+const PET_REACH = 3.4;
+
 /** How close to the letter table you have to stand for the game to open. */
 const TABLE_REACH = 2.2;
 /**
@@ -294,7 +297,9 @@ async function start(): Promise<void> {
 
     const step = 1 / HERD_HZ;
     herdDue = step;
-    const { poops, eaten } = localHerd.tick(step, Date.now() / 1000, world.treats.forHerd());
+    const { poops, eaten, cheers } = localHerd.tick(step, Date.now() / 1000, world.treats.forHerd(), [
+      { id: session.id, x: player.x, y: player.y },
+    ]);
     world.herd.apply(localHerd.snapshot());
     for (const poop of poops) {
       if (world.poop.spawn(poop.id, poop.x, poop.y)) sfx.plop();
@@ -302,6 +307,7 @@ async function start(): Promise<void> {
     for (const berry of eaten) {
       if (world.treats.eatById(berry)) sfx.munch();
     }
+    for (const pony of cheers) world.herd.cheer(pony);
   };
 
   const relay = import.meta.env.VITE_ANGEN_RELAY as string | undefined;
@@ -351,6 +357,10 @@ async function start(): Promise<void> {
       onHerd: (poses) => {
         lastSnapshot = performance.now();
         world.herd.apply(poses);
+      },
+      onCheer: (ponies) => {
+        for (const i of ponies) world.herd.cheer(i);
+        sfx.pickup();
       },
       onState: (state) => {
         // Both sides run the same rule, so this should never differ outside a
@@ -437,6 +447,21 @@ async function start(): Promise<void> {
     else if (!atTable) setTableHint('Bokstavsbordet! Gå fram och stava.');
   };
 
+  /**
+   * Pats a pony. Online the simulation decides whether it counted and tells
+   * everyone; alone, this browser is the simulation, so it decides here.
+   */
+  const petLocally = (pony: number): void => {
+    if (localHerd) {
+      if (localHerd.pet(pony, { id: session.id, x: player.x, y: player.y }, Date.now() / 1000)) {
+        world.herd.cheer(pony);
+        sfx.pickup();
+      }
+      return;
+    }
+    session.pet(pony);
+  };
+
   // --- caretaking ----------------------------------------------------------
   let hasShovel = false;
   let spaceHeld = false;
@@ -502,12 +527,20 @@ async function start(): Promise<void> {
       }
     }
 
-    // Tapping a poop within reach shovels it, and that tap must not also be
-    // read as "walk over there".
-    if (hasShovel && input.pointer.pressed) {
+    // A tap can mean three things, and they are tried in the order a child
+    // would expect: shovel what is under your nose, otherwise pat the pony you
+    // are standing next to, otherwise walk there.
+    if (input.pointer.pressed) {
       const at = camera.screenToWorld(input.pointer.x, input.pointer.y, viewport);
-      if (shovel(world.poop.findTarget(at.x, at.y, player.x, player.y))) {
+
+      if (hasShovel && shovel(world.poop.findTarget(at.x, at.y, player.x, player.y))) {
         controller.suppressPointer();
+      } else {
+        const pony = world.herd.findPettable(at.x, at.y, player.x, player.y, PET_REACH);
+        if (pony >= 0) {
+          petLocally(pony);
+          controller.suppressPointer();
+        }
       }
     }
 

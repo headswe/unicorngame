@@ -48,6 +48,41 @@ const REST = { min: 2.5, max: 9 };
 /** Close enough to count as arrived. */
 const ARRIVED = 0.25;
 
+/**
+ * How near a child has to be before a pony looks up at them.
+ *
+ * This is the whole difference between scenery and a creature. A pony you can
+ * stand nose-to-nose with while it carries on grazing is furniture; one that
+ * stops and turns to look at you is somebody.
+ */
+const NOTICE = 3.4;
+
+/** How near it will settle when following someone, so it does not shove them. */
+const HEEL = 1.7;
+
+/**
+ * A pony that has fallen behind hurries, and the further behind the harder.
+ *
+ * Without this, following does not work at all: a child runs at 6.4 units a
+ * second and a pony ambles at 1.3, so "following" would mean being left in the
+ * next field. It tops out just under a child's full pelt, so a determined
+ * sprint can still lose them — which is fair, and funny.
+ */
+const HURRY = { gain: 0.95, max: 5.8 };
+
+/** Beyond this it gives up and goes back to its own patch. */
+const FOLLOW_GIVE_UP = 30;
+
+/** How long a kindness buys you a companion, in seconds. */
+const FED_BONUS = 25;
+const PETTED_BONUS = 18;
+
+/** Seconds a pony stays visibly delighted after being fed or petted. */
+const CHEER_TIME = 1.4;
+
+/** What a pony is feeling, for the client to draw. */
+export const MOOD = { CALM: 0, LOOKING: 1, HAPPY: 2 };
+
 /** How far a pony will notice a strawberry and come over for it. */
 export const TREAT_SMELL = 9;
 /** How close its nose has to get. */
@@ -101,6 +136,10 @@ const ease = (t) => t * t * (3 - 2 * t);
  * @property {boolean} moving
  * @property {{x:number,y:number}|null} chase   a berry worth leaving the amble for
  * @property {{x:number,y:number}|null} target  where it is ambling to
+ * @property {string|null} friend   the child it is tagging along with
+ * @property {number} friendUntil   unix seconds it will keep tagging along
+ * @property {number} cheerUntil    unix seconds it stays visibly delighted
+ * @property {number} mood          see MOOD; only for drawing
  * @property {number} leg      counts the places it has ambled to, for the hashing
  * @property {number} restUntil unix seconds it will stand here until
  * @property {number} poopSlot last slot considered
@@ -152,6 +191,10 @@ export class Herd {
       moving: false,
       chase: null,
       target: null,
+      friend: null,
+      friendUntil: 0,
+      cheerUntil: 0,
+      mood: MOOD.CALM,
       leg: 0,
       // Staggered, so eighteen ponies do not all set off on the same beat.
       restUntil: Date.now() / 1000 + hash01(n, 105) * REST.max,
@@ -182,6 +225,7 @@ export class Herd {
       Math.round(p.y * 100) / 100,
       p.facing,
       p.moving ? 1 : 0,
+      p.mood,
     ]);
   }
 
@@ -191,17 +235,36 @@ export class Herd {
    * @param {number} dt    seconds since the last tick
    * @param {number} now   unix seconds
    * @param {Array<{id:string,x:number,y:number,landsAt:number,eaten:boolean}>} treats
-   * @returns {{poops: Array<{id:string,x:number,y:number}>, eaten: string[]}}
+   * @param {Array<{id:string,x:number,y:number}>} players where the children are
+   * @returns {{poops: Array<{id:string,x:number,y:number}>, eaten: string[], cheers: number[]}}
    *   what happened, for the caller to broadcast and remember
    */
-  tick(dt, now, treats = []) {
+  tick(dt, now, treats = [], players = []) {
     const poops = [];
     const eaten = [];
+    const cheers = [];
     const b = this.bounds;
 
-    for (const pony of this.ponies) {
+    for (const [index, pony] of this.ponies.entries()) {
       const wasX = pony.x;
       const wasY = pony.y;
+
+      // Who is nearby, and are we tagging along with anyone?
+      let nearest = null;
+      let nearestAway = NOTICE;
+      for (const player of players) {
+        const away = Math.hypot(player.x - pony.x, player.y - pony.y);
+        if (away < nearestAway) {
+          nearestAway = away;
+          nearest = player;
+        }
+      }
+      if (pony.friend && now >= pony.friendUntil) pony.friend = null;
+      const leader = pony.friend
+        ? players.find((pl) => pl.id === pony.friend) ?? null
+        : null;
+      // A friend who has closed their laptop is no longer a friend.
+      if (pony.friend && !leader) pony.friend = null;
 
       // Anything to go and eat? Berries are chosen by proximity, and because
       // one machine decides, two ponies can never pick the same one twice.
@@ -219,6 +282,13 @@ export class Herd {
       if (target && best <= EAT_RADIUS && now >= target.landsAt) {
         target.eaten = true;
         eaten.push(target.id);
+        // Whoever was standing near enough to have brought it gets the credit.
+        if (nearest) {
+          pony.friend = nearest.id;
+          pony.friendUntil = Math.max(pony.friendUntil, now + FED_BONUS);
+        }
+        pony.cheerUntil = now + CHEER_TIME;
+        cheers.push(index);
         // Finished with it. Stand a moment where it was eaten and then carry on
         // from here — there is nowhere it is supposed to be.
         pony.chase = null;
@@ -232,6 +302,22 @@ export class Herd {
         pony.chase = null;
         pony.target = null;
         pony.restUntil = now + 0.4;
+      }
+
+      // Following comes after berries and before ambling: a pony will leave its
+      // friend for a strawberry, which is exactly what a pony would do.
+      let hurry = 0;
+      if (!pony.chase && leader) {
+        const away = Math.hypot(leader.x - pony.x, leader.y - pony.y);
+        if (away > FOLLOW_GIVE_UP) {
+          pony.friend = null;
+        } else if (away > HEEL) {
+          pony.target = { x: leader.x, y: leader.y };
+          hurry = Math.min(HURRY.max, WANDER_SPEED + (away - HEEL) * HURRY.gain);
+        } else {
+          pony.target = null;
+          pony.restUntil = now;
+        }
       }
 
       const goal = pony.chase ?? pony.target;
@@ -248,11 +334,16 @@ export class Herd {
               now + REST.min + hash01(pony.n, pony.leg + 0x600d) * (REST.max - REST.min);
           }
         } else {
-          const speed = pony.chase ? CHASE_SPEED : WANDER_SPEED;
+          const speed = pony.chase ? CHASE_SPEED : hurry || WANDER_SPEED;
           const step = Math.min(distance, speed * dt);
           pony.x += (dx / distance) * step;
           pony.y += (dy / distance) * step;
         }
+      } else if (leader) {
+        // At heel and nothing to chase: stand with them and watch.
+      } else if (nearest) {
+        // Somebody is right here. Stop grazing and look up — the one behaviour
+        // that turns a decoration into a creature.
       } else if (now >= pony.restUntil) {
         // Done grazing: pick somewhere else in the patch and amble over.
         pony.leg += 1;
@@ -267,6 +358,11 @@ export class Herd {
       pony.moving = speed > 0.12;
       if (movedX > 0.005) pony.facing = 1;
       else if (movedX < -0.005) pony.facing = -1;
+      // Standing still with a child beside it: turn and face them.
+      else if (nearest && !pony.moving) pony.facing = nearest.x < pony.x ? -1 : 1;
+
+      pony.mood =
+        now < pony.cheerUntil ? MOOD.HAPPY : nearest || leader ? MOOD.LOOKING : MOOD.CALM;
 
       // Presents. One chance per slot, taken somewhere inside it so that
       // several ponies never go at once.
@@ -283,7 +379,21 @@ export class Herd {
       }
     }
 
-    return { poops, eaten };
+    return { poops, eaten, cheers };
+  }
+
+  /**
+   * A child reached out and patted one. Returns false if they are not actually
+   * next to it, so a tap across the meadow does nothing.
+   */
+  pet(index, player, now) {
+    const pony = this.ponies[index];
+    if (!pony || !player) return false;
+    if (Math.hypot(player.x - pony.x, player.y - pony.y) > NOTICE) return false;
+    pony.friend = player.id;
+    pony.friendUntil = Math.max(pony.friendUntil, now + PETTED_BONUS);
+    pony.cheerUntil = now + CHEER_TIME;
+    return true;
   }
 }
 

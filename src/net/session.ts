@@ -55,7 +55,9 @@ export interface SessionCallbacks {
   /** Who lives here, as seeds. Arrives on connecting and whenever it changes. */
   onRoster(seeds: string[]): void;
   /** Where the herd is, ten times a second. */
-  onHerd(poses: Array<[number, number, number, number]>): void;
+  onHerd(poses: Array<[number, number, number, number, number]>): void;
+  /** Ponies that are pleased about something. */
+  onCheer(ponies: number[]): void;
   onStatus(status: NetStatus): void;
 }
 
@@ -170,6 +172,12 @@ export class Session {
     this.transport.send({ t: 'eaten', id: this.id, berry });
   }
 
+  /** Tells the simulation a pony was patted. It decides whether it counted. */
+  pet(pony: number): void {
+    if (this.status !== 'online') return;
+    this.transport.send({ t: 'pet', id: this.id, pony });
+  }
+
   /** Tells everyone a poop was shovelled. */
   broadcastClean(poop: string): void {
     if (this.status !== 'online') return;
@@ -189,6 +197,10 @@ export class Session {
     }
     if (message.t === 'herd') {
       this.callbacks.onHerd(message.ponies);
+      return;
+    }
+    if (message.t === 'cheer') {
+      this.callbacks.onCheer(message.ponies);
       return;
     }
     // A relay broadcasts to everyone, so our own messages can come back.

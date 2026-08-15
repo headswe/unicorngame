@@ -484,6 +484,17 @@
     "tintable": true
   },
   {
+    "id": "hjartan",
+    "kind": "prop",
+    "label": "Hjärtan",
+    "url": "assets/parts/hjartan.png",
+    "width": 423,
+    "height": 512,
+    "aspect": 0.826171875,
+    "worldHeight": 0.5,
+    "tintable": false
+  },
+  {
     "id": "moln_stort",
     "kind": "cloud",
     "label": "Moln",

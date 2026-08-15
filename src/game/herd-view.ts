@@ -17,6 +17,8 @@ import * as THREE from 'three';
 
 import type { AssetLibrary } from '../engine/assets.ts';
 import type { PonyPose } from '../../server/herd.js';
+import { createSprite, type Sprite } from '../engine/sprite.ts';
+import { depthOrder, PART_ORDER, projectY } from '../engine/view.ts';
 import { Unicorn } from './unicorn.ts';
 import { randomVariant } from './variant.ts';
 
@@ -29,6 +31,12 @@ const FOLLOW = 9;
 /** Beyond this it has clearly been put somewhere — snap rather than slide. */
 const SNAP_DISTANCE = 6;
 
+/** How long a puff of hearts drifts up for. */
+const CHEER_TIME = 1.3;
+
+/** How near a tap has to land on a pony to count as patting it. */
+export const PET_RADIUS = 1.2;
+
 interface Member {
   seed: string;
   unicorn: Unicorn;
@@ -38,11 +46,56 @@ interface Member {
   moving: boolean;
 }
 
+interface Cheer {
+  sprite: Sprite;
+  x: number;
+  y: number;
+  age: number;
+}
+
 export class HerdView {
   readonly group = new THREE.Group();
   private members: Member[] = [];
+  private cheers: Cheer[] = [];
 
   constructor(private readonly assets: AssetLibrary) {}
+
+  /**
+   * The pony nearest a tap, if the child is close enough to reach it.
+   *
+   * Two tests, not one: the tap has to land on a pony *and* the child has to be
+   * standing by it, so patting is something you walk over and do rather than
+   * something you do to a pony across the field.
+   */
+  findPettable(tapX: number, tapY: number, fromX: number, fromY: number, reach: number): number {
+    let best = -1;
+    let bestAway = PET_RADIUS;
+    for (const [i, member] of this.members.entries()) {
+      const { unicorn } = member;
+      if (Math.hypot(unicorn.x - fromX, unicorn.y - fromY) > reach) continue;
+      const away = Math.hypot(unicorn.x - tapX, unicorn.y - tapY);
+      if (away < bestAway) {
+        best = i;
+        bestAway = away;
+      }
+    }
+    return best;
+  }
+
+  /** Sends up a puff of hearts over a pony. */
+  cheer(index: number): void {
+    const member = this.members[index];
+    if (!member || !this.assets.has('hjartan')) return;
+    const part = this.assets.get('hjartan');
+    const sprite = createSprite(part, { height: part.worldHeight });
+    this.group.add(sprite);
+    this.cheers.push({
+      sprite,
+      x: member.unicorn.x,
+      y: member.unicorn.y + 0.01,
+      age: 0,
+    });
+  }
 
   get count(): number {
     return this.members.length;
@@ -119,10 +172,39 @@ export class HerdView {
       unicorn.facing = member.facing;
       unicorn.update(dt, member.moving);
     }
+    this.driftCheers(dt);
+  }
+
+  /** Hearts rise, spread a little and fade. */
+  private driftCheers(dt: number): void {
+    for (let i = this.cheers.length - 1; i >= 0; i--) {
+      const cheer = this.cheers[i]!;
+      cheer.age += dt;
+      const t = cheer.age / CHEER_TIME;
+
+      if (t >= 1) {
+        cheer.sprite.removeFromParent();
+        cheer.sprite.material.dispose();
+        this.cheers.splice(i, 1);
+        continue;
+      }
+
+      cheer.sprite.position.set(
+        cheer.x + Math.sin(t * 3.1) * 0.16,
+        projectY(cheer.y) + 1.6 + t * 1.1,
+        0,
+      );
+      // Pops in, then fades as it goes.
+      cheer.sprite.scale.setScalar(Math.min(1, t * 5) * (1 - t * 0.25));
+      cheer.sprite.material.uniforms.opacity!.value = 1 - t * t;
+      cheer.sprite.renderOrder = depthOrder(cheer.y) + PART_ORDER.bubble;
+    }
   }
 
   dispose(): void {
     for (const member of this.members) member.unicorn.dispose();
+    for (const cheer of this.cheers) cheer.sprite.material.dispose();
     this.members = [];
+    this.cheers = [];
   }
 }

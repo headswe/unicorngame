@@ -182,7 +182,21 @@ export interface RosterMessage {
 export interface HerdMessage {
   t: 'herd';
   now: number;
-  ponies: Array<[number, number, number, number]>;
+  /** `[x, y, facing, moving, mood]` per pony, in roster order. */
+  ponies: Array<[number, number, number, number, number]>;
+}
+
+/** A child reached out and patted one of the herd. Index matches the roster. */
+export interface PetMessage {
+  t: 'pet';
+  id: string;
+  pony: number;
+}
+
+/** Ponies that are pleased about something: hearts over their heads. */
+export interface CheerMessage {
+  t: 'cheer';
+  ponies: number[];
 }
 
 export interface ByeMessage {
@@ -198,6 +212,8 @@ export type NetMessage =
   | CleanMessage
   | EatenMessage
   | HatchedMessage
+  | PetMessage
+  | CheerMessage
   | RosterMessage
   | HerdMessage
   | StateMessage
