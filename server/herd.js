@@ -61,6 +61,29 @@ const NOTICE = 3.4;
 const HEEL = 1.7;
 
 /**
+ * How much further out each successive follower stands.
+ *
+ * Every pony walking at the child's exact feet is what made a crowd of
+ * followers arrive as one pony-shaped pile. They take numbered places around
+ * her instead, laid out in the spiral a sunflower uses — which is the cheapest
+ * way to space any number of things evenly round a point without knowing in
+ * advance how many there will be.
+ */
+const FOLLOW_RING = 1.05;
+
+/** The angle between one follower's place and the next. */
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+
+/**
+ * How much wider than deep the ring of followers is drawn.
+ *
+ * Depth is squashed to about half on screen, so a ring that is round in world
+ * units comes out as a thin line of ponies stacked on each other. Stretching it
+ * sideways is what makes a crowd around a child read as a crowd.
+ */
+const RING_SHAPE = { x: 1.3, y: 0.8 };
+
+/**
  * A pony that has fallen behind hurries, and the further behind the harder.
  *
  * Without this, following does not work at all: a child runs at 6.4 units a
@@ -87,6 +110,26 @@ export const MOOD = { CALM: 0, LOOKING: 1, HAPPY: 2 };
 export const TREAT_SMELL = 9;
 /** How close its nose has to get. */
 export const EAT_RADIUS = 0.75;
+
+/**
+ * How much room a pony insists on having, side to side and front to back.
+ *
+ * Two figures rather than one because the meadow is drawn obliquely: depth is
+ * squashed to about half on screen, so two ponies a stride apart *in depth*
+ * still come out drawn on top of each other, while the same gap sideways reads
+ * as two clearly separate ponies. The oval is therefore long in y and narrow in
+ * x — it is a rule about what looks crowded, not about how fat a pony is.
+ */
+const PERSONAL_SPACE = { x: 1.25, y: 2.1 };
+
+/**
+ * How fast a pony shuffles aside, in world units a second.
+ *
+ * Faster than an amble, so making room always wins over walking into someone,
+ * and slower than a chase, so a pony can still push through a crowd to a
+ * strawberry rather than being held off it.
+ */
+const SHUFFLE = 1.6;
 
 /** Seconds between chances for one pony to leave a present. */
 const POOP_SLOT = 40;
@@ -155,6 +198,74 @@ function somewhereNearHome(pony, leg, bounds) {
     x: clamp(pony.homeX + Math.cos(angle) * distance, bounds.minX, bounds.maxX),
     y: clamp(pony.homeY + Math.sin(angle) * distance, bounds.minY, bounds.maxY),
   };
+}
+
+/**
+ * Hands out the strawberries, one pony to a berry.
+ *
+ * Without this every pony within smelling distance walks at the *same* nearest
+ * berry, so a shower that lands in a clump gathers the whole herd into one
+ * spot — and all but one of them then stands there having lost the race. The
+ * closest pairing is settled first and both are then out of the running, so a
+ * shower spreads the herd over it instead of piling them onto the near edge.
+ *
+ * Ties break on index so that the result depends only on where everyone is
+ * standing, never on the order two equally close ponies happen to be visited.
+ */
+function shareOutTreats(ponies, treats) {
+  /** @type {Array<{treat: object, away: number}|null>} */
+  const claims = ponies.map(() => null);
+  const pairs = [];
+
+  for (const [p, pony] of ponies.entries()) {
+    for (const [t, treat] of treats.entries()) {
+      if (treat.eaten) continue;
+      const away = Math.hypot(treat.x - pony.x, treat.y - pony.y);
+      if (away < TREAT_SMELL) pairs.push({ p, t, away });
+    }
+  }
+  if (pairs.length === 0) return claims;
+
+  pairs.sort((a, b) => a.away - b.away || a.p - b.p || a.t - b.t);
+  const taken = new Set();
+  for (const pair of pairs) {
+    if (claims[pair.p] || taken.has(pair.t)) continue;
+    claims[pair.p] = { treat: treats[pair.t], away: pair.away };
+    taken.add(pair.t);
+  }
+  return claims;
+}
+
+/**
+ * Where each pony that is following someone should be standing.
+ *
+ * Places are handed out in roster order so a pony keeps the same one for as
+ * long as the same crowd is together, and the first place is right at the
+ * child's side — one pony following looks exactly as it did before, and it is
+ * only the second, third and eighteenth that get sent further out.
+ *
+ * @returns {Array<{x:number,y:number}|null>} indexed like the herd
+ */
+function fanOut(ponies, players, bounds) {
+  const spots = ponies.map(() => null);
+  if (players.length === 0) return spots;
+
+  for (const player of players) {
+    let place = 0;
+    for (const [i, pony] of ponies.entries()) {
+      if (pony.friend !== player.id) continue;
+      // A little of the pony's own seed in the angle, so the ring is a herd
+      // standing about rather than a diagram.
+      const angle = place * GOLDEN_ANGLE + hash01(pony.n, 0xbeef) * 0.5;
+      const radius = HEEL + Math.sqrt(place) * FOLLOW_RING;
+      spots[i] = {
+        x: clamp(player.x + Math.cos(angle) * radius * RING_SHAPE.x, bounds.minX, bounds.maxX),
+        y: clamp(player.y + Math.sin(angle) * radius * RING_SHAPE.y, bounds.minY, bounds.maxY),
+      };
+      place += 1;
+    }
+  }
+  return spots;
 }
 
 export class Herd {
@@ -245,10 +356,15 @@ export class Herd {
     const cheers = [];
     const b = this.bounds;
 
-    for (const [index, pony] of this.ponies.entries()) {
-      const wasX = pony.x;
-      const wasY = pony.y;
+    const claims = shareOutTreats(this.ponies, treats);
+    const spots = fanOut(this.ponies, players, b);
+    // Kept so that facing and the walk cycle can be worked out at the end of
+    // the tick, once everyone has both walked and made room for each other.
+    const before = this.ponies.map((p) => ({ x: p.x, y: p.y }));
+    /** Who each pony has an eye on, for the second pass. */
+    const watching = [];
 
+    for (const [index, pony] of this.ponies.entries()) {
       // Who is nearby, and are we tagging along with anyone?
       let nearest = null;
       let nearestAway = NOTICE;
@@ -265,19 +381,12 @@ export class Herd {
         : null;
       // A friend who has closed their laptop is no longer a friend.
       if (pony.friend && !leader) pony.friend = null;
+      watching.push(nearest);
 
-      // Anything to go and eat? Berries are chosen by proximity, and because
-      // one machine decides, two ponies can never pick the same one twice.
-      let target = null;
-      let best = TREAT_SMELL;
-      for (const treat of treats) {
-        if (treat.eaten) continue;
-        const d = Math.hypot(treat.x - pony.x, treat.y - pony.y);
-        if (d < best) {
-          best = d;
-          target = treat;
-        }
-      }
+      // Whichever strawberry was put aside for this one, if any.
+      const claim = claims[index];
+      const target = claim ? claim.treat : null;
+      const best = claim ? claim.away : Infinity;
 
       if (target && best <= EAT_RADIUS && now >= target.landsAt) {
         target.eaten = true;
@@ -307,13 +416,14 @@ export class Herd {
       // Following comes after berries and before ambling: a pony will leave its
       // friend for a strawberry, which is exactly what a pony would do.
       let hurry = 0;
-      if (!pony.chase && leader) {
+      const spot = spots[index];
+      if (!pony.chase && leader && spot) {
         const away = Math.hypot(leader.x - pony.x, leader.y - pony.y);
         if (away > FOLLOW_GIVE_UP) {
           pony.friend = null;
-        } else if (away > HEEL) {
-          pony.target = { x: leader.x, y: leader.y };
-          hurry = Math.min(HURRY.max, WANDER_SPEED + (away - HEEL) * HURRY.gain);
+        } else if (Math.hypot(spot.x - pony.x, spot.y - pony.y) > ARRIVED) {
+          pony.target = spot;
+          hurry = Math.min(HURRY.max, WANDER_SPEED + Math.max(0, away - HEEL) * HURRY.gain);
         } else {
           pony.target = null;
           pony.restUntil = now;
@@ -353,17 +463,6 @@ export class Herd {
       pony.x = clamp(pony.x, b.minX, b.maxX);
       pony.y = clamp(pony.y, b.minY, b.maxY);
 
-      const movedX = pony.x - wasX;
-      const speed = dt > 0 ? Math.hypot(movedX, pony.y - wasY) / dt : 0;
-      pony.moving = speed > 0.12;
-      if (movedX > 0.005) pony.facing = 1;
-      else if (movedX < -0.005) pony.facing = -1;
-      // Standing still with a child beside it: turn and face them.
-      else if (nearest && !pony.moving) pony.facing = nearest.x < pony.x ? -1 : 1;
-
-      pony.mood =
-        now < pony.cheerUntil ? MOOD.HAPPY : nearest || leader ? MOOD.LOOKING : MOOD.CALM;
-
       // Presents. One chance per slot, taken somewhere inside it so that
       // several ponies never go at once.
       const slot = Math.floor(now / POOP_SLOT);
@@ -379,7 +478,95 @@ export class Herd {
       }
     }
 
+    this.makeRoom(dt, players);
+
+    // Which way each is facing, and whether the legs are moving, is settled
+    // last — after shuffling aside as well as after walking, so a pony edging
+    // out of someone's way turns and steps rather than sliding sideways.
+    for (const [index, pony] of this.ponies.entries()) {
+      const was = before[index];
+      const nearest = watching[index];
+      const movedX = pony.x - was.x;
+      const speed = dt > 0 ? Math.hypot(movedX, pony.y - was.y) / dt : 0;
+      pony.moving = speed > 0.12;
+      if (movedX > 0.005) pony.facing = 1;
+      else if (movedX < -0.005) pony.facing = -1;
+      // Standing still with a child beside it: turn and face them.
+      else if (nearest && !pony.moving) pony.facing = nearest.x < pony.x ? -1 : 1;
+
+      pony.mood =
+        now < pony.cheerUntil ? MOOD.HAPPY : nearest || pony.friend ? MOOD.LOOKING : MOOD.CALM;
+    }
+
     return { poops, eaten, cheers };
+  }
+
+  /**
+   * Nudges apart anyone standing on top of somebody else.
+   *
+   * Ponies have no idea they are drawn as pictures, so nothing in the walking
+   * above stops two of them ending up in the same square metre — and when they
+   * do, the two sprites overlay into one unreadable smudge of legs. This is the
+   * fix: after everyone has moved, anything inside somebody's personal space
+   * gets a gentle shove out of it.
+   *
+   * The shove is capped by speed rather than applied outright, so a crowd
+   * loosens over about half a second — ponies shuffling apart, not popping.
+   * Children are pushed *from* but never pushed: their position is theirs to
+   * decide, and a meadow that shoved a child around would be a poor meadow.
+   */
+  makeRoom(dt, players = []) {
+    const b = this.bounds;
+    const budget = SHUFFLE * dt;
+    const shove = this.ponies.map(() => ({ x: 0, y: 0 }));
+
+    /** How far out of the oval a pair is, and which way that points. */
+    const overlap = (fromX, fromY, toX, toY, n) => {
+      let dx = toX - fromX;
+      let dy = toY - fromY;
+      // Dead centre on top of each other has no direction to push along, so
+      // the seed picks one — the same one every tick, so they part cleanly
+      // instead of jittering.
+      if (Math.abs(dx) < 1e-4 && Math.abs(dy) < 1e-4) {
+        dx = hash01(n, 0xc0de) < 0.5 ? -1e-3 : 1e-3;
+      }
+      const nx = dx / PERSONAL_SPACE.x;
+      const ny = dy / PERSONAL_SPACE.y;
+      const d = Math.hypot(nx, ny);
+      if (d >= 1) return null;
+      // Back into world units, scaled to how deep inside the oval they are.
+      const out = (1 - d) / d;
+      return { x: nx * PERSONAL_SPACE.x * out, y: ny * PERSONAL_SPACE.y * out };
+    };
+
+    for (let i = 0; i < this.ponies.length; i++) {
+      const a = this.ponies[i];
+      for (let j = i + 1; j < this.ponies.length; j++) {
+        const c = this.ponies[j];
+        const push = overlap(a.x, a.y, c.x, c.y, a.n ^ c.n);
+        if (!push) continue;
+        // Half each, so neither is held responsible for the crowding.
+        shove[i].x -= push.x * 0.5;
+        shove[i].y -= push.y * 0.5;
+        shove[j].x += push.x * 0.5;
+        shove[j].y += push.y * 0.5;
+      }
+      for (const player of players) {
+        const push = overlap(a.x, a.y, player.x, player.y, a.n);
+        if (!push) continue;
+        shove[i].x -= push.x;
+        shove[i].y -= push.y;
+      }
+    }
+
+    for (const [i, pony] of this.ponies.entries()) {
+      const want = shove[i];
+      const size = Math.hypot(want.x, want.y);
+      if (size < 1e-6) continue;
+      const step = Math.min(size, budget) / size;
+      pony.x = clamp(pony.x + want.x * step, b.minX, b.maxX);
+      pony.y = clamp(pony.y + want.y * step, b.minY, b.maxY);
+    }
   }
 
   /**
