@@ -400,6 +400,40 @@ export const PARTS: PartSpec[] = [
   ),
 
   /**
+   * The magic flower an egg grows inside, closed and then open.
+   *
+   * Straight out of the picture book the whole egg spell comes from: a unicorn
+   * family that wants a foal grows a magic flower, and when it opens there is
+   * an egg inside. The two drawings have to be the same plant at the same size
+   * and standing in the same place, because the game swaps one for the other —
+   * anything that moves between them reads as a glitch rather than as opening.
+   */
+  prop(
+    'magiblomma',
+    'Magisk blomma',
+    'A single tall closed flower bud on one dark green stem with two large ' +
+      'pointed leaves, seen exactly from the side. The bud is a big smooth ' +
+      'teardrop of overlapping petals shading from deep pink at the base to ' +
+      'warm coral and pale gold at the tip, held tightly shut. Three tiny ' +
+      'four-pointed sparkle stars float around the bud. It looks magical and ' +
+      'about to open.',
+    2.1,
+  ),
+  prop(
+    'magiblomma_oppen',
+    'Öppen magisk blomma',
+    'A single tall open flower on one dark green stem with two large pointed ' +
+      'leaves, seen exactly from the side — the same plant as a closed bud, ' +
+      'the same height, the same stem and the same leaves, but now bloomed. ' +
+      'Seven long petals shading from deep pink at the base to warm coral and ' +
+      'pale gold at the tips are spread wide and curve outward and downward ' +
+      'like an open cup, leaving the middle of the flower completely empty ' +
+      'and open. A few pale golden stamens and four tiny four-pointed sparkle ' +
+      'stars float around it. Nothing is inside the flower.',
+    2.1,
+  ),
+
+  /**
    * The hatching egg. Drawn near-white like the unicorn parts, because it is
    * tinted with the coat colour of the foal inside and takes that foal's coat
    * pattern through the same shader — the egg is a preview of what is coming.

@@ -451,6 +451,28 @@
     "tintable": false
   },
   {
+    "id": "magiblomma",
+    "kind": "prop",
+    "label": "Magisk blomma",
+    "url": "assets/parts/magiblomma.png",
+    "width": 334,
+    "height": 512,
+    "aspect": 0.65234375,
+    "worldHeight": 2.1,
+    "tintable": false
+  },
+  {
+    "id": "magiblomma_oppen",
+    "kind": "prop",
+    "label": "Öppen magisk blomma",
+    "url": "assets/parts/magiblomma_oppen.png",
+    "width": 429,
+    "height": 512,
+    "aspect": 0.837890625,
+    "worldHeight": 2.1,
+    "tintable": false
+  },
+  {
     "id": "agg",
     "kind": "prop",
     "label": "Ägg",

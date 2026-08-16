@@ -22,7 +22,7 @@ import { shadowTexture } from './shadow.ts';
 import type { UnicornVariant } from './variant.ts';
 
 /** How long an egg sits there before it opens. Long enough to go and watch it. */
-export const HATCH_TIME = { min: 14, max: 20 };
+export const HATCH_TIME = { min: 11, max: 16 };
 
 /** The shell cracks this many seconds before the foal comes out. */
 const CRACK_LEAD = 4.5;

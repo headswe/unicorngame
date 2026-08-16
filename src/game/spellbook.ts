@@ -46,7 +46,7 @@ export const SPELLS: Spell[] = [
   {
     id: 'trollagg',
     name: 'Trollägg',
-    description: 'Ett ägg dyker upp. Vänta — en liten enhörning kläcks!',
+    description: 'En magisk blomma växer. I den ligger ett ägg!',
     icon: '🥚',
     // A heart, for a new little one. It is also the only one of the three a
     // child is likely to have drawn a hundred times already.

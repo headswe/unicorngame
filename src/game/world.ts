@@ -14,7 +14,9 @@ import { makeRng, type Rng } from '../engine/rng.ts';
 import { createSprite, type Sprite } from '../engine/sprite.ts';
 import { depthOrder, PART_ORDER, projectY } from '../engine/view.ts';
 import { Backdrop } from './backdrop.ts';
+import { BLOOM_TIME, clutchSize, eggId } from '../../server/clutch.js';
 import { EggNest, HATCH_TIME } from './eggs.ts';
+import { MagicFlowers } from './flower.ts';
 import { createGround } from './ground.ts';
 import { WORLD_BOUNDS } from '../../server/herd.js';
 import { HerdView } from './herd-view.ts';
@@ -23,7 +25,12 @@ import { shadowTexture } from './shadow.ts';
 import { PoopField } from './poop.ts';
 import { TreatField } from './treats.ts';
 import { Unicorn } from './unicorn.ts';
-import { randomSeed, randomVariant, type UnicornVariant } from './variant.ts';
+import {
+  foalVariant,
+  randomSeed,
+  siblingVariant,
+  type UnicornVariant,
+} from './variant.ts';
 
 /**
  * Where the unicorns are allowed to walk.
@@ -91,6 +98,19 @@ const SCATTER: ScatterSpec[] = [
   { id: 'nyckelpiga', count: 12, min: 0.22, max: 0.32, shadow: false, avoidsClearing: false },
 ];
 
+/** A clutch that has been decided but is still shut inside its bud. */
+interface PendingClutch {
+  seed: string;
+  atX: number;
+  atY: number;
+  foal: UnicornVariant;
+  count: number;
+  /** When each egg opens, in seconds after the spell was cast. */
+  hatchTimes: number[];
+  /** How far into that timeline the meadow already was, at least BLOOM_TIME. */
+  spent: number;
+}
+
 export class World {
   readonly scene = new THREE.Scene();
   readonly backdrop: Backdrop;
@@ -99,6 +119,7 @@ export class World {
   readonly poop: PoopField;
   readonly treats: TreatField;
   readonly eggs: EggNest;
+  readonly flowers: MagicFlowers;
   /** Flowers conjured by a spell, kept so they can be animated in. */
   private readonly blooms: Array<{ sprite: Sprite; age: number }> = [];
 
@@ -108,6 +129,11 @@ export class World {
   onEat: (() => void) | null = null;
   /** Called with the newcomer's name when an egg opens. */
   onHatch: ((id: string, variant: UnicornVariant, x: number, y: number) => void) | null = null;
+  /** Called when a magic flower opens, with how many eggs were inside it. */
+  onBloom: ((seed: string, eggs: number) => void) | null = null;
+
+  /** Clutches whose flower has not opened yet, waiting to be laid. */
+  private readonly pending = new Map<string, PendingClutch>();
 
   private readonly decor: THREE.Group = new THREE.Group();
   private shovelSprite: THREE.Object3D | null = null;
@@ -139,6 +165,16 @@ export class World {
     this.scene.add(this.treats.group);
     this.eggs = new EggNest(assets);
     this.eggs.onHatch = (id, variant, x, y) => this.hatch(id, variant, x, y);
+    this.flowers = new MagicFlowers(assets);
+    this.flowers.onBloom = (seed) => {
+      const waiting = this.pending.get(seed);
+      if (!waiting) return;
+      this.pending.delete(seed);
+      this.bloom(waiting);
+    };
+    // The flowers go in before the eggs so a shell drawn at the same depth as
+    // its own flower still comes out in front of the petals.
+    this.scene.add(this.flowers.group);
     this.scene.add(this.eggs.group);
     this.placeShovel();
     this.placeLetterTable();
@@ -216,47 +252,103 @@ export class World {
    * not see two different ponies come out of it.
    */
   rollFoal(): UnicornVariant {
-    const foal = randomVariant(this.assets, `agg-${randomSeed()}`);
-    // Whatever the roll said, something that just hatched is a foal.
-    foal.scale = Math.min(foal.scale, 0.78);
-    return foal;
+    return foalVariant(this.assets, `agg-${randomSeed()}`);
   }
 
   /**
-   * Conjures an egg beside a point, with a known foal inside it.
+   * Grows a magic flower beside a point, with a known foal waiting inside it.
    *
-   * The foal is settled before the shell exists, which is the whole trick: it
-   * can then be painted in that foal's coat colour and coat pattern, so you can
-   * see what is coming while you wait. Everything else about the egg — where it
-   * lands, how long it takes — comes from `rng`, so casting this with the same
-   * seed on two machines puts the same egg in the same place.
+   * This is the picture book's rule rather than a game mechanic anyone invented:
+   * a unicorn family that wants a foal grows a magic flower, the flower opens,
+   * and there is the egg. Some flowers hold two eggs, or three, and those are
+   * the twins and triplets — how many is worked out from the spell's seed by a
+   * rule the relay shares, so nobody has to send it.
+   *
+   * Only the first foal is passed in. Its brothers and sisters are derived from
+   * it, which is both cheaper and truer: they come out of the same flower, so
+   * they share a coat, and the eggs they are in are painted to match.
+   *
+   * Everything else — where the flower stands, how long each egg takes — comes
+   * from `rng`, so casting this with the same seed on two machines grows the
+   * same flower in the same place. `elapsed` catches up a flower cast while
+   * nobody was here: one far enough along starts already open.
    */
-  layEgg(
-    id: string,
+  layClutch(
+    seed: string,
     x: number,
     y: number,
     rng: Rng,
     foal: UnicornVariant,
-    /** Seconds this egg has already been sitting there, when catching up. */
+    /** Seconds since it was cast, when catching up. */
     elapsed = 0,
-  ): boolean {
-    if (!this.eggs.available) return false;
+  ): number {
+    if (!this.eggs.available) return 0;
 
     // Beside the caster rather than under them, and never outside the fence.
     const angle = rng.range(0, Math.PI * 2);
     const distance = rng.range(1.7, 2.7);
-    const eggX = clamp(x + Math.cos(angle) * distance, WORLD_BOUNDS.minX, WORLD_BOUNDS.maxX);
-    const eggY = clamp(
-      y + Math.sin(angle) * distance * 0.8,
-      WORLD_BOUNDS.minY,
-      WORLD_BOUNDS.maxY,
+    const atX = clamp(x + Math.cos(angle) * distance, WORLD_BOUNDS.minX, WORLD_BOUNDS.maxX);
+    const atY = clamp(y + Math.sin(angle) * distance * 0.8, WORLD_BOUNDS.minY, WORLD_BOUNDS.maxY);
+
+    const count = clutchSize(seed);
+    const hatchTimes: number[] = [];
+    for (let i = 0; i < count; i++) {
+      // Siblings do not all go at once — a few seconds apart is three moments
+      // instead of one, and it lets a child watch each one arrive.
+      hatchTimes.push(rng.range(HATCH_TIME.min, HATCH_TIME.max) + i * rng.range(1.6, 3.2));
+    }
+    const last = Math.max(...hatchTimes);
+
+    // Every time below is measured from when the spell was cast: the petals
+    // open at BLOOM_TIME, egg i opens at BLOOM_TIME + hatchTimes[i], and the
+    // flower folds away shortly after the last of them. `spent` is how far into
+    // that the meadow already is, which is BLOOM_TIME at the earliest because
+    // the eggs do not exist before the flower opens.
+    const spent = Math.max(elapsed, BLOOM_TIME);
+
+    // The flower stands a little behind its eggs, so they sit in the mouth of
+    // it, and stays until the last of them has hatched.
+    this.flowers.plant(
+      seed,
+      atX,
+      clamp(atY + 0.7, WORLD_BOUNDS.minY, WORLD_BOUNDS.maxY),
+      BLOOM_TIME - elapsed,
+      last + 1.2 - (spent - BLOOM_TIME),
     );
 
-    const hatchIn = rng.range(HATCH_TIME.min, HATCH_TIME.max) - elapsed;
-    // Already due: it opened while nobody was looking. The foal is in the herd
-    // the simulation sends us, so there is nothing to put down here.
-    if (hatchIn <= 0) return true;
-    return this.eggs.lay(id, eggX, eggY, foal, hatchIn);
+    // Before the petals open there is nothing to put down yet; `bloom` lays the
+    // eggs when they do. A flower being caught up on is already past that.
+    const waiting = { seed, atX, atY, foal, count, hatchTimes, spent };
+    if (elapsed < BLOOM_TIME) this.pending.set(seed, waiting);
+    else this.bloom(waiting);
+
+    return count;
+  }
+
+  /** Puts the eggs into a flower that has just opened. */
+  private bloom(clutch: PendingClutch): void {
+    const { seed, atX, atY, foal, count, hatchTimes, spent } = clutch;
+    // Spread sideways rather than in depth: the view squashes depth, so a row
+    // of eggs laid front-to-back would stack into one egg-shaped smudge.
+    const spread = 0.62;
+
+    for (let i = 0; i < count; i++) {
+      const offset = count === 1 ? 0 : (i - (count - 1) / 2) * spread;
+      const hatchIn = (hatchTimes[i] ?? HATCH_TIME.min) + BLOOM_TIME - spent;
+      // Already due: it opened while nobody was looking. The foal is in the
+      // herd the simulation sends us, so there is nothing to put down here.
+      if (hatchIn <= 0) continue;
+      this.eggs.lay(
+        eggId(seed, i),
+        clamp(atX + offset, WORLD_BOUNDS.minX, WORLD_BOUNDS.maxX),
+        // A hair of depth between them so they overlap like a real clutch
+        // rather than sitting in a perfect line.
+        clamp(atY - Math.abs(offset) * 0.12, WORLD_BOUNDS.minY, WORLD_BOUNDS.maxY),
+        i === 0 ? foal : siblingVariant(this.assets, foal, i),
+        hatchIn,
+      );
+    }
+    this.onBloom?.(seed, count);
   }
 
   /**
@@ -351,6 +443,7 @@ export class World {
     this.poop.update(dt);
     this.treats.update(dt, now);
     this.growBlooms(dt);
+    this.flowers.update(dt);
     this.eggs.update(dt);
   }
 

@@ -18,6 +18,8 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
+import { clutchOf, clutchSize } from './clutch.js';
+
 /**
  * App Service mounts a persistent share at /home; everything else on the
  * instance is lost when a worker recycles. Locally this falls back to a folder
@@ -143,12 +145,25 @@ export class Meadow {
         break;
 
       case 'hatched': {
-        // Every browser watching the egg reports this; the first one wins.
-        const before = s.eggs.length;
-        s.eggs = s.eggs.filter((e) => e.id !== message.egg);
-        if (before === s.eggs.length) break;
+        // A magic flower can hold twins or triplets, so a hatch names one egg
+        // out of a clutch and the clutch is only forgotten once every egg in it
+        // has been reported. Forgetting it on the first would lose the other
+        // foals: their own reports would then find no record and be dropped,
+        // and a child's twins would be one pony by the morning.
+        const seed = clutchOf(message.egg);
+        const clutch = s.eggs.find((e) => e.id === seed);
+        if (!clutch) break;
+
+        // Every browser watching reports it; the first report of each egg wins.
+        clutch.hatched ??= [];
+        if (clutch.hatched.includes(message.egg)) break;
+        clutch.hatched.push(message.egg);
+
         if (s.foals.length < LIMITS.foals) {
           s.foals.push({ foal: message.foal, x: message.x, y: message.y });
+        }
+        if (clutch.hatched.length >= clutchSize(seed)) {
+          s.eggs = s.eggs.filter((e) => e !== clutch);
         }
         this.#touch();
         break;

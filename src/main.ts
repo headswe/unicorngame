@@ -181,9 +181,29 @@ async function start(): Promise<void> {
     // Everyone watching reports it; the relay keeps the first and files the
     // foal away so it is still here tomorrow.
     session.broadcastHatched(egg, born, x, y);
+    // With no relay there is nobody to put the foal in the herd and send it
+    // back, so this browser — which is simulating the herd itself — does it.
+    if (localHerd) {
+      localHerd.add(born.seed, x, y);
+      world.herd.setRoster(localHerd.roster());
+    }
   };
 
   // --- spellcasting ---------------------------------------------------------
+
+  /**
+   * Flowers this child grew, so only they are told what came out of one. A
+   * friend's twins are their news to be excited about, not a line on your HUD.
+   */
+  const myFlowers = new Set<string>();
+
+  world.onBloom = (seed, eggs) => {
+    if (!myFlowers.has(seed)) return;
+    myFlowers.delete(seed);
+    if (eggs >= 3) hud.announce('Trillingar! Tre ägg i blomman.', 8);
+    else if (eggs === 2) hud.announce('Tvillingar! Två ägg i blomman.', 8);
+    else hud.announce('Ett ägg! Vänta hos det tills det kläcks.', 8);
+  };
 
   /**
    * Performs a spell. Driven both by this player casting one and by the network
@@ -216,10 +236,11 @@ async function start(): Promise<void> {
       world.bloomFlowers(x, y, rng);
     } else if (id === 'trollagg' && foal) {
       if (audible) sfx.eggSpell();
-      // Only the child who cast it is told to go and wait; announcing a friend's
-      // egg across the meadow would just be noise.
-      if (world.layEgg(seed, x, y, rng, foal, elapsed) && mine) {
-        hud.announce('Ett ägg! Vänta hos det tills det kläcks.', 8);
+      // Only the child who cast it is told what is happening; narrating a
+      // friend's flower across the meadow would just be noise.
+      if (mine) myFlowers.add(seed);
+      if (world.layClutch(seed, x, y, rng, foal, elapsed) && mine && audible) {
+        hud.announce('En magisk blomma växer! Vänta hos den.', 6);
       }
     }
   };
