@@ -69,6 +69,19 @@ const HAIR_LAG = 0.09;
 /** How long a delighted little jump takes. */
 const HOP_TIME = 0.5;
 
+/** How far up the body a somersault turns about, in body heights. */
+const SPIN_PIVOT = 0.5;
+
+/**
+ * Render order for the side-on yard, and the gap between one pony and the next.
+ *
+ * Nothing there has any depth to sort by, so the order is simply handed out.
+ * The gap is comfortably wider than the parts of one unicorn, so two ponies can
+ * never interleave.
+ */
+const SIDE_ORDER = 400000;
+const SIDE_LAYER_GAP = 40;
+
 interface AnimatedPart {
   mesh: Sprite;
   order: number;
@@ -117,7 +130,31 @@ export class Unicorn {
   /** Height of this unicorn in world units, after its size multiplier. */
   readonly height: number;
 
+  /**
+   * Where this unicorn is standing, and how it is drawn.
+   *
+   * `meadow` is the field: y is depth, squashed on screen, and everything is
+   * sorted north to south. `side` is the bouncing yard, drawn flat-on like a
+   * picture book spread: y is how high off the ground it is, and there is no
+   * depth at all — which is why the sorting has to be told rather than worked
+   * out, and why the ground shadow goes away.
+   */
+  view: 'meadow' | 'side' = 'meadow';
+
+  /** Which pony is in front of which, in the side view. Ignored in the meadow. */
+  layer = 0;
+
+  /**
+   * How far the whole unicorn is rotated, in radians, about its middle.
+   *
+   * Real screen rotation, not body-relative: it is applied outside the mirror
+   * that turns the pony round, so a spinning pony keeps spinning the same way
+   * whichever way it is facing.
+   */
+  spin = 0;
+
   private readonly ground = new THREE.Group();
+  private readonly spinner = new THREE.Group();
   private readonly flip = new THREE.Group();
   private readonly bob = new THREE.Group();
   private readonly parts: AnimatedPart[] = [];
@@ -158,12 +195,19 @@ export class Unicorn {
     this.phase = this.stagger * Math.PI * 2;
     this.swishIn = SWISH_EVERY.min + this.stagger * (SWISH_EVERY.max - SWISH_EVERY.min);
 
-    this.group.add(this.ground, this.flip);
+    this.group.add(this.ground, this.spinner);
+    this.spinner.add(this.flip);
     this.flip.add(this.bob);
     // Everything inside is laid out in body heights; one scale brings the whole
     // unicorn to its world size.
     this.flip.scale.setScalar(this.height);
     this.ground.scale.setScalar(this.height);
+    // A somersault turns about the middle of the pony rather than about its
+    // hooves, so the spinner sits half a body up and the body hangs back down
+    // from it. Both offsets are in world units — the spinner is outside the
+    // scale, which is exactly what keeps its rotation unmirrored.
+    this.spinner.position.y = this.height * SPIN_PIVOT;
+    this.flip.position.y = -this.height * SPIN_PIVOT;
 
     // The shadow stays flat on the grass while the body bounces above it.
     const shadowPart = shadowTexture();
@@ -333,10 +377,16 @@ export class Unicorn {
       ? Math.sign(this.facingBlend || 1) * 0.06
       : this.facingBlend;
     this.flip.scale.x = this.height * flipScale;
+    this.spinner.rotation.z = this.spin;
 
-    this.group.position.set(this.x, projectY(this.y), 0);
+    // In the yard y is height off the ground rather than depth into the field,
+    // so it is not squashed, nothing is sorted by it, and the shadow — which
+    // belongs on the grass — would otherwise ride up into the air.
+    const side = this.view === 'side';
+    this.group.position.set(this.x, side ? this.y : projectY(this.y), 0);
+    if (this.shadow) this.shadow.visible = !side;
 
-    const base = depthOrder(this.y);
+    const base = side ? SIDE_ORDER + this.layer * SIDE_LAYER_GAP : depthOrder(this.y);
     for (const part of this.parts) part.mesh.renderOrder = base + part.order;
     if (this.shadow) this.shadow.renderOrder = base + PART_ORDER.shadow;
   }

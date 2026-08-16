@@ -400,6 +400,37 @@ export const PARTS: PartSpec[] = [
   ),
 
   /**
+   * The gate through to the bouncing yard, and the trampoline in it.
+   *
+   * The gate stands in the meadow and is drawn in the meadow's own three-
+   * quarter way; the trampoline is only ever seen from the side, because the
+   * yard is drawn flat-on like a picture book spread rather than as a field you
+   * look across. That is why it is a proper side view and not a squashed one.
+   */
+  prop(
+    'grind',
+    'Grind',
+    'A wide wooden garden gate standing open in a short white picket fence, ' +
+      'seen from the front and slightly above. The gate is painted pale mint ' +
+      'green with a carved heart in the middle, the posts are honey-coloured ' +
+      'wood with round tops, and a garland of tiny pink and yellow flowers is ' +
+      'wound along the top rail. A few tiny four-pointed sparkle stars float ' +
+      'over the opening. It looks welcoming, like a way through to somewhere.',
+    2.4,
+  ),
+  prop(
+    'studsmatta',
+    'Studsmatta',
+    'A round garden trampoline seen exactly from the side at ground level, ' +
+      'so the mat is a straight horizontal line rather than an ellipse. A ' +
+      'thick padded rim in bright turquoise runs along the top edge, the ' +
+      'stretchy mat between is dark slate blue, and four sturdy honey-wood ' +
+      'legs splay out below it to the ground. The whole thing is low, wide ' +
+      'and bouncy-looking.',
+    1.15,
+  ),
+
+  /**
    * The magic flower an egg grows inside, closed and then open.
    *
    * Straight out of the picture book the whole egg spell comes from: a unicorn

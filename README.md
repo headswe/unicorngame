@@ -27,8 +27,12 @@ play — only to draw new parts.
 | Tap a poop nearby (or Space) | Shovel it up |
 | **✨** | Open the spellbook |
 | Walk to the letter table | Play the spelling game |
+| Walk into the gate | Go through to the bouncing yard |
 
 Both schemes are live at once, so a laptop and a tablet behave the same.
+
+In the bouncing yard, left and right run on the ground and turn somersaults in
+the air. Walking into the gate at the far end brings you back to the meadow.
 
 ## How a unicorn is put together
 
@@ -104,6 +108,31 @@ New bodies, horns, manes, tails and patterns are picked up by the random
 generator automatically; scenery needs a line in the `SCATTER` table in
 `src/game/world.ts`.
 
+## The two places
+
+There are two, and they are drawn by different rules.
+
+**The meadow** (`src/game/world.ts`) is a field seen at three-quarters: `y` is
+depth, squashed on screen, everything sorted north to south.
+
+**The bouncing yard** (`src/game/yard.ts`), through the gate, is a picture book
+spread seen flat on: `y` is height off the ground, a unicorn is exactly as tall
+as it is, and there is no depth to sort by at all. Same sprites either way — a
+storybook pony is drawn in side view for both — so `Unicorn` carries a `view`
+flag rather than there being two of it.
+
+Because the same two numbers mean different things on the two sides of the
+gate, a pose sent over the network says which place it is talking about; see
+`Place` in `src/net/protocol.ts`. A child in the yard is also dropped from the
+herd's list of people to follow, or the ponies would trot off to a patch of
+meadow where nobody is standing.
+
+Everyone who goes through the gate is in the same yard. The bouncing itself is
+each child's own physics — a bounce is not something anybody else's connection
+should be able to stutter — and the others are drawn from their poses exactly
+the way visitors in the meadow are, at twice the rate because a bouncing pony
+crosses a lot of sky in a hurry.
+
 ## How the world is drawn
 
 The meadow is a flat field: `x` runs east, `y` runs away from you. Characters
@@ -136,7 +165,9 @@ tools/chroma.ts           magenta cut-out
 tools/imagegen.ts         Azure gpt-image-2 client, cached and rate-limit aware
 
 src/engine/               projection, sprites, tint shader, input, assets, rng
-src/game/                 variant, rig, unicorn, player, npc, world, backdrop
+src/game/                 variant, rig, unicorn, player, world, yard, backdrop
+server/herd.js            the herd simulation, shared by relay and browser
+server/clutch.js          how many eggs a magic flower holds, likewise shared
 ```
 
 ## Debugging

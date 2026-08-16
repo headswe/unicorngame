@@ -29,8 +29,10 @@ import { meadowDay, meadowSeed } from './game/day.ts';
 import { EAT_RADIUS } from './game/treats.ts';
 import { Marker, MINE } from './game/marker.ts';
 import { Visitors } from './game/visitors.ts';
-import { World, WORLD_BOUNDS, SHOVEL_SPOT, TABLE_SPOT } from './game/world.ts';
+import { World, WORLD_BOUNDS, GATE_SPOT, SHOVEL_SPOT, TABLE_SPOT } from './game/world.ts';
+import { BounceYard } from './game/yard.ts';
 import { Herd, HERD_HZ, RESIDENTS, WORLD_BOUNDS as SIM_BOUNDS } from '../server/herd.js';
+import type { Place } from './net/protocol.ts';
 import { Session } from './net/session.ts';
 import { LoopbackTransport, SocketTransport, type Transport } from './net/transport.ts';
 
@@ -57,6 +59,20 @@ const TABLE_REACH = 2.2;
 const TABLE_LEAVE = 3.6;
 /** How near the table has to be before the hint points it out. */
 const TABLE_NOTICE = 9;
+
+/** How close to the gate you have to stand to go through to the yard. */
+const GATE_REACH = 2.2;
+/** And how far back out you have to walk before it will take you again. */
+const GATE_LEAVE = 4;
+
+/**
+ * How much of the bouncing yard is on screen at once.
+ *
+ * Sized to the biggest bounce: the ceiling plus a whole unicorn plus a little
+ * sky has to fit above the floor, and nothing more, or the ponies come out tiny
+ * and the yard reads as mostly empty air.
+ */
+const YARD_VIEW_HEIGHT = 9.5;
 
 /**
  * The whole renderer works in sRGB byte space, so three must not helpfully
@@ -120,13 +136,35 @@ async function start(): Promise<void> {
     replacement.facing = player.facing;
 
     player.dispose();
-    world.scene.add(replacement.group);
     player = replacement;
     controller = new PlayerController(player, WORLD_BOUNDS);
     controller.onStep = () => sfx.step();
+    // Changing clothes over the fence puts the new pony back in the yard, not
+    // in the meadow it cannot currently see.
+    if (place === 'studs') {
+      const wasX = replacement.x;
+      yard.enter(replacement);
+      replacement.x = wasX;
+    } else {
+      world.scene.add(replacement.group);
+    }
     player.update(0, false);
     hud.setName(next.name);
   };
+
+  const yard = new BounceYard(assets);
+  const yardCamera = new MeadowCamera(YARD_VIEW_HEIGHT);
+
+  /**
+   * Which side of the gate this child is on.
+   *
+   * Declared up here rather than beside the rest of the gate because the pose
+   * the network asks for names the place, and it is asked for the instant the
+   * session connects — which happens before anything below this line exists.
+   */
+  let place: Place = 'angen';
+  /** True while standing in a gateway, so it does not grab you twice. */
+  let inGateway = false;
 
   let openSpellbook = (): void => undefined;
   let openWardrobe = (): void => undefined;
@@ -343,12 +381,13 @@ async function start(): Promise<void> {
     transport,
     visitors,
     {
-      pose: () => ({
-        x: player.x,
-        y: player.y,
-        f: player.facing,
-        m: controller.moving,
-      }),
+      // In the yard y means height rather than depth and the pony can be upside
+      // down, so a pose has to say which place it belongs to — the same two
+      // numbers mean different things on the two sides of the gate.
+      pose: () =>
+        place === 'studs'
+          ? { x: player.x, y: player.y, f: player.facing, m: yard.running, p: place, r: player.spin }
+          : { x: player.x, y: player.y, f: player.facing, m: controller.moving },
       variant: () => worn,
       cleaned: () => world.poop.shovelled,
     },
@@ -439,12 +478,18 @@ async function start(): Promise<void> {
   // the alphabet blocks on it, out in the meadow.
   let atTable = false;
   let nearTable = false;
-  /** Whether the line currently on the HUD is the table's to take back. */
-  let tableHint = false;
+  /**
+   * Whether the line currently on the HUD belongs to a landmark.
+   *
+   * Both the letter table and the gate point themselves out this way, and only
+   * whoever put a line up is allowed to take it down — otherwise walking past
+   * one of them wipes out whatever the other had just said.
+   */
+  let landmarkHint = false;
 
-  const setTableHint = (text: string | null): void => {
-    if (text === null && !tableHint) return;
-    tableHint = text !== null;
+  const setLandmarkHint = (text: string | null): void => {
+    if (text === null && !landmarkHint) return;
+    landmarkHint = text !== null;
     hud.setHint(text);
   };
 
@@ -459,13 +504,13 @@ async function start(): Promise<void> {
 
     if (!atTable && away < TABLE_REACH) {
       atTable = true;
-      setTableHint('Gå bort och tillbaka för ett nytt ord!');
+      setLandmarkHint('Gå bort och tillbaka för ett nytt ord!');
       openSpelling();
       return;
     }
 
-    if (!nearTable) setTableHint(null);
-    else if (!atTable) setTableHint('Bokstavsbordet! Gå fram och stava.');
+    if (!nearTable) setLandmarkHint(null);
+    else if (!atTable) setLandmarkHint('Bokstavsbordet! Gå fram och stava.');
   };
 
   /**
@@ -574,6 +619,69 @@ async function start(): Promise<void> {
     }
   };
 
+  // --- through the gate -----------------------------------------------------
+
+  const enterYard = (): void => {
+    if (place === 'studs' || !yard.available) return;
+    place = 'studs';
+    inGateway = true;
+    controller.stop();
+    setLandmarkHint(null);
+    // The ponies come too: one registry, one set of unicorns, drawn into
+    // whichever scene the child is currently standing in.
+    yard.scene.add(visitors.group);
+    yard.enter(player);
+    visitors.watch('studs');
+    myMarker.group.removeFromParent();
+    yard.scene.add(myMarker.group);
+    sfx.magicOpen();
+    hud.announce('Studsa! Håll vänster eller höger i luften för att slå en volt.', 9);
+  };
+
+  const leaveYard = (): void => {
+    if (place !== 'studs') return;
+    place = 'angen';
+    inGateway = true;
+    const pony = yard.leave();
+    if (pony) {
+      // Set down clear of the gate rather than back in the exact spot they left
+      // from — which is always the gateway itself, and would mean having to
+      // walk away and back before they could go in again.
+      pony.x = GATE_SPOT.x;
+      pony.y = Math.max(WORLD_BOUNDS.minY, GATE_SPOT.y - GATE_LEAVE - 0.5);
+      world.scene.add(pony.group);
+    }
+    world.scene.add(visitors.group);
+    visitors.watch('angen');
+    myMarker.group.removeFromParent();
+    world.scene.add(myMarker.group);
+    sfx.magicOpen();
+    followPlayer(0, true);
+  };
+
+  yard.events.onBounce = (strength) => sfx.bounce(strength);
+  yard.events.onFlips = (turned, total) => {
+    sfx.sparkle();
+    const what = turned === 1 ? 'En volt!' : `${turned} voltar!`;
+    hud.announce(`${what} Du har slagit ${total} idag.`, 3);
+  };
+
+  /** Walking into a gateway, on either side of it. */
+  const gateways = (): void => {
+    if (place === 'studs') {
+      if (inGateway && !yard.atGate) inGateway = false;
+      if (!inGateway && yard.atGate) leaveYard();
+      return;
+    }
+    if (!world.hasGate) return;
+    const away = Math.hypot(player.x - GATE_SPOT.x, player.y - GATE_SPOT.y);
+    if (inGateway && away > GATE_LEAVE) inGateway = false;
+    if (!inGateway && away < GATE_REACH) enterYard();
+    else if (!inGateway && away < TABLE_NOTICE && !nearTable) {
+      setLandmarkHint('Grinden! Gå in och studsa.');
+    }
+  };
+
   const viewport: ViewportSize = { width: 0, height: 0 };
 
   const resize = (): void => {
@@ -583,6 +691,7 @@ async function start(): Promise<void> {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(viewport.width, viewport.height, false);
     camera.resize(viewport);
+    yardCamera.resize(viewport);
   };
   resize();
   window.addEventListener('resize', resize);
@@ -640,22 +749,43 @@ async function start(): Promise<void> {
 
     wardrobe.tick();
 
-    if (spellUi.open || wardrobe.open || spelling.open) {
-      // The overlay swallows pointers, but not the keyboard, so the unicorn is
-      // held still explicitly while a sigil is being drawn.
+    const busy = spellUi.open || wardrobe.open || spelling.open;
+
+    if (place === 'studs') {
+      // The overlay swallows pointers but not the keyboard, so a child fiddling
+      // with the spellbook is not left steering a bouncing pony by accident.
+      yard.update(dt, { steer: busy ? 0 : Math.sign(input.moveAxis().x) });
+      gateways();
+    } else if (busy) {
       player.update(dt, false);
     } else {
       caretaking(dt);
       controller.update(dt, input, camera, viewport);
+      gateways();
     }
+
+    // The meadow keeps going while a child is over the fence: the herd wanders,
+    // eggs hatch, strawberries land. Coming back to a meadow frozen exactly as
+    // you left it would be the wrong kind of quiet.
     tickLocalHerd(dt);
     world.update(dt);
     myMarker.follow(player, dt);
     session.update(dt);
-    followPlayer(dt, false);
-    world.backdrop.update(dt, camera.camera, camera.extents(viewport));
 
-    renderer.render(world.scene, camera.camera);
+    if (place === 'studs') {
+      const { halfWidth, halfHeight } = yardCamera.extents(viewport);
+      const look = yard.cameraTarget(halfWidth, halfHeight);
+      const ease = 1 - Math.exp(-dt * 8);
+      yardCamera.lookAtScreenPoint(
+        yardCamera.camera.position.x + (look.x - yardCamera.camera.position.x) * ease,
+        yardCamera.camera.position.y + (look.y - yardCamera.camera.position.y) * ease,
+      );
+      renderer.render(yard.scene, yardCamera.camera);
+    } else {
+      followPlayer(dt, false);
+      world.backdrop.update(dt, camera.camera, camera.extents(viewport));
+      renderer.render(world.scene, camera.camera);
+    }
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);

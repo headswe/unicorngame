@@ -32,6 +32,15 @@ import type { NetStatus, Transport } from './transport.ts';
 /** How often a standing-still unicorn reports in, as a heartbeat. */
 const IDLE_HZ = 2;
 
+/**
+ * And how often from the bouncing yard, where a pony crosses a lot of sky in a
+ * hurry and is never really standing still. Twice the meadow's rate, for a
+ * handful of children at a time — the traffic is nothing and a friend's bounce
+ * arriving in ten steps rather than five is the difference between a bounce and
+ * a stutter.
+ */
+const YARD_HZ = 20;
+
 export interface SessionCallbacks {
   /** Someone else cast a spell; replay it locally so both screens agree. */
   onSpell(
@@ -263,9 +272,12 @@ export class Session {
     this.since += dt;
     const pose = this.sources.pose();
     // A unicorn standing still needs only a heartbeat; one being walked needs
-    // enough updates to look like walking.
+    // enough updates to look like walking; one bouncing needs more still. A
+    // pony resting between bounces has `m` false but is emphatically not idle,
+    // which is why the yard is asked about first.
     const moving = pose.m || this.lastSent === null || this.lastSent.m;
-    if (this.since < 1 / (moving ? POSE_HZ : IDLE_HZ)) return;
+    const rate = pose.p === 'studs' ? YARD_HZ : moving ? POSE_HZ : IDLE_HZ;
+    if (this.since < 1 / rate) return;
 
     this.since = 0;
     this.lastSent = pose;

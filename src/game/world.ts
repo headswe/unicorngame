@@ -65,6 +65,15 @@ export const TABLE_SPOT = { x: -9.5, y: 14.5 };
 /** Nothing large is planted within this radius of the letter table either. */
 const TABLE_CLEARING = 4;
 
+/**
+ * The gate through to the bouncing yard.
+ *
+ * On the other side of spawn from the letter table, so a child wandering out of
+ * the clearing finds one of the two whichever way they turn, and neither is the
+ * thing you trip over first.
+ */
+export const GATE_SPOT = { x: 8.5, y: 15.5 };
+
 interface ScatterSpec {
   id: string;
   count: number;
@@ -139,6 +148,7 @@ export class World {
   private shovelSprite: THREE.Object3D | null = null;
   /** False only when the sprite is missing, which keeps the hint honest. */
   hasLetterTable = false;
+  hasGate = false;
 
   constructor(
     private readonly assets: AssetLibrary,
@@ -178,6 +188,7 @@ export class World {
     this.scene.add(this.eggs.group);
     this.placeShovel();
     this.placeLetterTable();
+    this.placeGate();
 
     this.player = playerUnicorn;
     this.player.x = SPAWN.x;
@@ -231,7 +242,8 @@ export class World {
           const clear =
             !spec.avoidsClearing ||
             (Math.hypot(x - SPAWN.x, y - SPAWN.y) > CLEARING_RADIUS &&
-              Math.hypot(x - TABLE_SPOT.x, y - TABLE_SPOT.y) > TABLE_CLEARING);
+              Math.hypot(x - TABLE_SPOT.x, y - TABLE_SPOT.y) > TABLE_CLEARING &&
+              Math.hypot(x - GATE_SPOT.x, y - GATE_SPOT.y) > TABLE_CLEARING);
           if (clear) {
             placed = true;
             break;
@@ -424,6 +436,13 @@ export class World {
     const part = this.assets.get('bokstavsbord');
     this.plant(part, TABLE_SPOT.x, TABLE_SPOT.y, part.worldHeight, true);
     this.hasLetterTable = true;
+  }
+
+  private placeGate(): void {
+    if (!this.assets.has('grind')) return;
+    const part = this.assets.get('grind');
+    this.plant(part, GATE_SPOT.x, GATE_SPOT.y, part.worldHeight, true);
+    this.hasGate = true;
   }
 
   /** Removes the shovel from the grass once it has been picked up. */

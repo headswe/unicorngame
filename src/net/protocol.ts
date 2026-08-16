@@ -20,7 +20,17 @@ import type { UnicornVariant } from '../game/variant.ts';
  * versions — one with a stale tab open — are dropped rather than left watching
  * each other glitch.
  */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
+
+/**
+ * The two places a child can be.
+ *
+ * `angen` is the meadow, where y is depth into the field. `studs` is the
+ * bouncing yard through the gate, where y is height off the ground. The same
+ * two numbers mean different things in each, which is exactly why a pose has
+ * to say which one it is talking about.
+ */
+export type Place = 'angen' | 'studs';
 
 /** How many times a second each player's position goes out. */
 export const POSE_HZ = 10;
@@ -31,11 +41,19 @@ export const PEER_TIMEOUT = 6;
 /** Where a unicorn is and what it is doing, as sent. Kept small; it is frequent. */
 export interface Pose {
   x: number;
+  /** Depth into the meadow, or height above the yard floor. See `p`. */
   y: number;
   /** 1 faces right, -1 faces left. */
   f: 1 | -1;
   /** Whether the walk cycle should be playing. */
   m: boolean;
+  /** Which place this pose is in. Absent means the meadow. */
+  p?: Place;
+  /**
+   * How far the pony is rotated, in radians. Only ever sent from the yard,
+   * where a bouncing child can turn somersaults; absent means upright.
+   */
+  r?: number;
 }
 
 /** Announces a player, and re-announces after a wardrobe change. */

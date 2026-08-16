@@ -37,6 +37,9 @@ export const THEIRS = 0x8ab6ff;
  */
 const HEIGHT = 1.06;
 
+/** Above every pony in the yard, which has no depth of its own to sort by. */
+const SIDE_MARKER_ORDER = 500000;
+
 /** How far it bobs, and how fast. Enough to catch the eye, not enough to nag. */
 const BOB = 0.07;
 const BOB_RATE = 2.1;
@@ -139,16 +142,19 @@ export class Marker {
     this.clock += dt;
     if (this.named) this.setName(unicorn.variant.name);
 
+    // In the yard the unicorn's y is height off the ground, not depth into the
+    // field, so it is neither squashed nor sorted by.
+    const side = unicorn.view === 'side';
     const bob = Math.sin(this.clock * BOB_RATE) * BOB;
     this.group.position.set(
       unicorn.x,
-      projectY(unicorn.y) + unicorn.height * HEIGHT + bob,
+      (side ? unicorn.y : projectY(unicorn.y)) + unicorn.height * HEIGHT + bob,
       0,
     );
 
     // Above everything else standing at this depth, so it is never lost behind
     // a bush or another pony's mane.
-    const order = depthOrder(unicorn.y) + PART_ORDER.bubble;
+    const order = (side ? SIDE_MARKER_ORDER : depthOrder(unicorn.y)) + PART_ORDER.bubble;
     if (this.arrow) this.arrow.renderOrder = order;
     if (this.label) this.label.renderOrder = order + 1;
   }

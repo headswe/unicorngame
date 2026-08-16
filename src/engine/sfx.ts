@@ -235,6 +235,25 @@ export class Sfx {
     this.tone(620, { duration: 0.16, gain: 0.06, delay: 0.07 });
   }
 
+  /**
+   * The trampoline. A rubbery downward thump that snaps back upward, which is
+   * what a bounce sounds like — and the harder the bounce the higher it goes,
+   * so the sound climbs with the child instead of repeating at them.
+   *
+   * @param strength 0..1, how big this bounce was against the biggest possible.
+   */
+  bounce(strength: number): void {
+    const pitch = 150 + strength * 130;
+    this.tone(pitch, { duration: 0.1, gain: 0.13, type: 'triangle', slideTo: pitch * 0.55 });
+    this.tone(pitch * 1.6, {
+      duration: 0.22,
+      gain: 0.07 + strength * 0.05,
+      type: 'sine',
+      slideTo: pitch * 3.4,
+      delay: 0.04,
+    });
+  }
+
   /** Picking something up: a short two-note lift. */
   pickup(): void {
     this.tone(660, { duration: 0.12, gain: 0.11, type: 'triangle' });

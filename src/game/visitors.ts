@@ -16,7 +16,7 @@
 import * as THREE from 'three';
 
 import type { AssetLibrary } from '../engine/assets.ts';
-import type { Pose } from '../net/protocol.ts';
+import type { Place, Pose } from '../net/protocol.ts';
 import { PEER_TIMEOUT } from '../net/protocol.ts';
 import { Marker, THEIRS } from './marker.ts';
 import { Unicorn } from './unicorn.ts';
@@ -28,8 +28,18 @@ import type { UnicornVariant } from './variant.ts';
  */
 const FOLLOW = 9;
 
+/**
+ * And how hard in the bouncing yard, where a pony crosses a lot of sky in a
+ * hurry. The meadow's easing would leave a bouncing friend trailing a visible
+ * distance behind where they actually are.
+ */
+const YARD_FOLLOW = 22;
+
 /** Beyond this a visitor has clearly teleported — snap instead of sliding. */
 const SNAP_DISTANCE = 6;
+
+/** A pose with nothing to say about where it is, is in the meadow. */
+const placeOf = (pose: Pose): Place => pose.p ?? 'angen';
 
 interface Visitor {
   unicorn: Unicorn;
@@ -37,6 +47,8 @@ interface Visitor {
   marker: Marker;
   variantKey: string;
   target: Pose;
+  /** Which side of the gate they are on. */
+  place: Place;
   /** Seconds since this peer last said anything. */
   silent: number;
 }
@@ -44,6 +56,15 @@ interface Visitor {
 export class Visitors {
   readonly group = new THREE.Group();
   private readonly here = new Map<string, Visitor>();
+
+  /**
+   * Which place this child is looking at.
+   *
+   * Everyone shares one registry whichever side of the gate they are on, and a
+   * visitor is simply hidden while they are somewhere else. Two registries
+   * would mean two copies of every pony and two chances to lose one.
+   */
+  private viewing: Place = 'angen';
 
   /** Fires whenever someone arrives or leaves, with the new head count. */
   onCount: ((count: number) => void) | null = null;
@@ -59,6 +80,18 @@ export class Visitors {
   /** Everyone currently in the meadow, for the roster. */
   names(): string[] {
     return [...this.here.values()].map((v) => v.unicorn.variant.name);
+  }
+
+  /** How many friends are in a given place, so the HUD can say so. */
+  countIn(place: Place): number {
+    let n = 0;
+    for (const visitor of this.here.values()) if (placeOf(visitor.target) === place) n++;
+    return n;
+  }
+
+  /** Switches which place is being drawn. Called when a child goes through. */
+  watch(place: Place): void {
+    this.viewing = place;
   }
 
   /**
@@ -89,9 +122,17 @@ export class Visitors {
     }
 
     const unicorn = this.build(variant, pose.x, pose.y, pose.f);
+    unicorn.view = placeOf(pose) === 'studs' ? 'side' : 'meadow';
     const marker = new Marker(this.assets, THEIRS, true);
     this.group.add(marker.group);
-    this.here.set(id, { unicorn, marker, variantKey: key, target: pose, silent: 0 });
+    this.here.set(id, {
+      unicorn,
+      marker,
+      variantKey: key,
+      target: pose,
+      place: placeOf(pose),
+      silent: 0,
+    });
     this.onArrive?.(variant);
     this.onCount?.(this.here.size);
   }
@@ -147,6 +188,20 @@ export class Visitors {
       }
 
       const { unicorn, target } = visitor;
+      const place = placeOf(target);
+      // Somebody who has just gone through the gate is somewhere else entirely,
+      // in coordinates that mean something else — never slide between the two.
+      if (place !== visitor.place) {
+        visitor.place = place;
+        unicorn.view = place === 'studs' ? 'side' : 'meadow';
+        unicorn.x = target.x;
+        unicorn.y = target.y;
+      }
+      const showing = place === this.viewing;
+      unicorn.group.visible = showing;
+      visitor.marker.group.visible = showing;
+      if (!showing) continue;
+
       const dx = target.x - unicorn.x;
       const dy = target.y - unicorn.y;
 
@@ -154,12 +209,13 @@ export class Visitors {
         unicorn.x = target.x;
         unicorn.y = target.y;
       } else {
-        const ease = 1 - Math.exp(-dt * FOLLOW);
+        const ease = 1 - Math.exp(-dt * (place === 'studs' ? YARD_FOLLOW : FOLLOW));
         unicorn.x += dx * ease;
         unicorn.y += dy * ease;
       }
 
       unicorn.facing = target.f;
+      unicorn.spin = target.r ?? 0;
       unicorn.update(dt, target.m);
       visitor.marker.follow(unicorn, dt);
     }

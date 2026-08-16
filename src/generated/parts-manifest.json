@@ -451,6 +451,28 @@
     "tintable": false
   },
   {
+    "id": "grind",
+    "kind": "prop",
+    "label": "Grind",
+    "url": "assets/parts/grind.png",
+    "width": 512,
+    "height": 426,
+    "aspect": 1.2018779342723005,
+    "worldHeight": 2.4,
+    "tintable": false
+  },
+  {
+    "id": "studsmatta",
+    "kind": "prop",
+    "label": "Studsmatta",
+    "url": "assets/parts/studsmatta.png",
+    "width": 512,
+    "height": 138,
+    "aspect": 3.710144927536232,
+    "worldHeight": 1.15,
+    "tintable": false
+  },
+  {
     "id": "magiblomma",
     "kind": "prop",
     "label": "Magisk blomma",

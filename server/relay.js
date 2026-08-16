@@ -218,7 +218,12 @@ function absorb(message, socket) {
     // Remembering which socket a child speaks through is what lets the ponies
     // stop following them the moment the laptop closes.
     if (socket) socket.peerId = message.id;
-    players.set(message.id, { id: message.id, x: message.pose.x, y: message.pose.y });
+    // A child who has gone through the gate is not in the meadow at all, and
+    // their pose means something else there — y is how high they are bouncing.
+    // Feeding that to the herd would send ponies trotting to a spot nobody is
+    // standing in, so they simply stop being somebody to follow.
+    if (message.pose.p && message.pose.p !== 'angen') players.delete(message.id);
+    else players.set(message.id, { id: message.id, x: message.pose.x, y: message.pose.y });
   } else if (message?.t === 'bye') {
     players.delete(message.id);
   } else if (message?.t === 'pet') {
