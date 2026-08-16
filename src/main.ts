@@ -66,6 +66,14 @@ const GATE_REACH = 2.2;
 const GATE_LEAVE = 4;
 
 /**
+ * How far to the side of the pony a finger has to land to count as a direction.
+ *
+ * Not zero: a touch landing right on the pony would otherwise flick between
+ * left and right as the pony moved under the finger.
+ */
+const YARD_TOUCH_DEADZONE = 0.6;
+
+/**
  * How much of the bouncing yard is on screen at once.
  *
  * Sized to the biggest bounce: the ceiling plus a whole unicorn plus a little
@@ -165,6 +173,16 @@ async function start(): Promise<void> {
   let place: Place = 'angen';
   /** True while standing in a gateway, so it does not grab you twice. */
   let inGateway = false;
+  /**
+   * Which way a held finger is asking the pony to go in the yard.
+   *
+   * Latched rather than read fresh every frame. A touch steers the pony toward
+   * itself, so once the pony has passed under the finger a fresh reading would
+   * reverse — which on the ground is fine and in mid-air would turn a
+   * somersault back on itself halfway round. So it is re-read while the hooves
+   * are down and held for the whole of a jump.
+   */
+  let yardTouch = 0;
 
   let openSpellbook = (): void => undefined;
   let openWardrobe = (): void => undefined;
@@ -635,7 +653,8 @@ async function start(): Promise<void> {
     myMarker.group.removeFromParent();
     yard.scene.add(myMarker.group);
     sfx.magicOpen();
-    hud.announce('Studsa! Håll vänster eller höger i luften för att slå en volt.', 9);
+    hud.setRestingHint('Peka bredvid din enhörning för att gå');
+    hud.announce('Studsa! Håll kvar fingret i luften så slår du en volt.', 9);
   };
 
   const leaveYard = (): void => {
@@ -655,6 +674,8 @@ async function start(): Promise<void> {
     visitors.watch('angen');
     myMarker.group.removeFromParent();
     world.scene.add(myMarker.group);
+    yardTouch = 0;
+    hud.setRestingHint('Gå med pilarna · eller peka där du vill gå');
     sfx.magicOpen();
     followPlayer(0, true);
   };
@@ -669,8 +690,10 @@ async function start(): Promise<void> {
   /** Walking into a gateway, on either side of it. */
   const gateways = (): void => {
     if (place === 'studs') {
-      if (inGateway && !yard.atGate) inGateway = false;
+      if (inGateway && !yard.nearGate) inGateway = false;
       if (!inGateway && yard.atGate) leaveYard();
+      else if (yard.nearGate) setLandmarkHint('Stå stilla här för att gå tillbaka.');
+      else setLandmarkHint(null);
       return;
     }
     if (!world.hasGate) return;
@@ -752,9 +775,22 @@ async function start(): Promise<void> {
     const busy = spellUi.open || wardrobe.open || spelling.open;
 
     if (place === 'studs') {
+      // Arrows on a laptop; on a phone there are none, so a finger held to one
+      // side of the pony does the same job — walk that way on the ground, turn
+      // that way in the air. Without this the yard could not be played on a
+      // phone at all, which is what it is mostly played on.
+      if (!input.pointer.down) {
+        yardTouch = 0;
+      } else if (yardTouch === 0 || !yard.airborne) {
+        const { halfWidth } = yardCamera.extents(viewport);
+        const touchX = yardCamera.camera.position.x + input.pointer.x * halfWidth;
+        const gap = touchX - yard.ponyX;
+        if (Math.abs(gap) > YARD_TOUCH_DEADZONE) yardTouch = Math.sign(gap);
+      }
       // The overlay swallows pointers but not the keyboard, so a child fiddling
       // with the spellbook is not left steering a bouncing pony by accident.
-      yard.update(dt, { steer: busy ? 0 : Math.sign(input.moveAxis().x) });
+      const keys = Math.sign(input.moveAxis().x);
+      yard.update(dt, { steer: busy ? 0 : keys || yardTouch });
       gateways();
     } else if (busy) {
       player.update(dt, false);

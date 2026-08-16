@@ -29,6 +29,7 @@ export class Hud {
   private readonly friends: HTMLSpanElement;
   private readonly friendsCount: HTMLSpanElement;
   private hint: string | null = null;
+  private resting = 'Gå med pilarna · eller peka där du vill gå';
   /** While `performance.now()` is below this, ambient hints are held off. */
   private announceUntil = 0;
 
@@ -147,6 +148,23 @@ export class Hud {
     this.paintHint(text);
   }
 
+  /**
+   * What the hint says when nothing more urgent is being said.
+   *
+   * The controls are not the same on both sides of the gate — the meadow is
+   * walk-anywhere, the bouncing yard is left and right — so the line the game
+   * falls back to has to be able to change with the place.
+   */
+  setRestingHint(text: string): void {
+    if (this.resting === text) return;
+    this.resting = text;
+    // Repaint if the resting line is what is currently showing.
+    if (this.hint === null) {
+      const el = this.root.querySelector<HTMLParagraphElement>('.hud-hint');
+      if (el) el.textContent = text;
+    }
+  }
+
   /** A one-off message — something just happened — that outranks the hints. */
   announce(text: string, seconds = 6): void {
     this.announceUntil = 0;
@@ -159,7 +177,7 @@ export class Hud {
     if (!el) return;
     if (text === this.hint) return;
     this.hint = text;
-    el.textContent = text ?? 'Gå med pilarna · eller peka där du vill gå';
+    el.textContent = text ?? this.resting;
     el.classList.remove('gone');
   }
 

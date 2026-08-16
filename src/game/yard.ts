@@ -31,7 +31,20 @@ import type { Unicorn } from './unicorn.ts';
 export const YARD = { minX: -13, maxX: 13, floor: 0 };
 
 /** Where the way home stands, and how close you have to be to take it. */
-export const GATE_HOME = { x: YARD.minX + 1.6, reach: 1.5 };
+export const GATE_HOME = { x: YARD.minX + 1.6, reach: 2.1 };
+
+/**
+ * How long you have to be standing still at the gate before it takes you.
+ *
+ * Leaving has to be something you decide rather than something that happens to
+ * you. Holding a direction is how you turn somersaults, and a somersault
+ * carries you sideways, so a child flipping leftward arrives at the gate
+ * sooner or later — and being yanked out of the yard mid-play would be
+ * maddening. Steering at all resets this, and it is long enough that a child
+ * who is still playing never sits through it by accident: the way out is to
+ * walk to the gate and deliberately stand there.
+ */
+const GATE_DWELL = 1.2;
 
 /** Where the trampoline is, how wide it is, and how high you stand on it. */
 const TRAMPOLINE = { x: 0, halfWidth: 3.1, top: 1.02 };
@@ -125,6 +138,8 @@ export class BounceYard {
   private spinVel = 0;
   /** Radians turned since leaving the ground, for counting somersaults. */
   private turned = 0;
+  /** Seconds spent standing still in the gateway home. */
+  private waited = 0;
   private readonly sprites: Sprite[] = [];
 
   constructor(private readonly assets: AssetLibrary) {
@@ -230,6 +245,7 @@ export class BounceYard {
     this.vx = 0;
     this.vy = 0;
     this.turned = 0;
+    this.waited = 0;
     this.onGround = true;
     pony.update(0, false);
   }
@@ -246,14 +262,29 @@ export class BounceYard {
     return pony;
   }
 
+  /** Whether the pony is off the ground, which is when a touch has to hold. */
+  get airborne(): boolean {
+    return !this.onGround;
+  }
+
+  /** Where the pony is, for working out which side of it a finger landed. */
+  get ponyX(): number {
+    return this.pony?.x ?? 0;
+  }
+
   /** Whether the legs should be running, for the walk cycle sent to friends. */
   get running(): boolean {
     return this.onGround && Math.abs(this.vx) > 0.1;
   }
 
-  /** Whether the child is standing in the gateway home. */
-  get atGate(): boolean {
+  /** Whether the child is standing in the gateway, whether or not they mean it. */
+  get nearGate(): boolean {
     return !!this.pony && this.onGround && Math.abs(this.pony.x - GATE_HOME.x) < GATE_HOME.reach;
+  }
+
+  /** Whether the child has settled in the gateway home and means it. */
+  get atGate(): boolean {
+    return this.waited >= GATE_DWELL;
   }
 
   update(dt: number, input: YardInput): void {
@@ -299,6 +330,12 @@ export class BounceYard {
     }
 
     this.land(pony, wasY, dt);
+
+    // Settling in the gateway. Any steering at all, and any air under the
+    // hooves, starts the wait over.
+    const inGateway =
+      this.onGround && input.steer === 0 && Math.abs(pony.x - GATE_HOME.x) < GATE_HOME.reach;
+    this.waited = inGateway ? this.waited + dt : 0;
 
     pony.facing = this.vx > 0.05 ? 1 : this.vx < -0.05 ? -1 : pony.facing;
     // The legs run on the ground and hang still in the air, which is what makes
