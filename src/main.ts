@@ -76,11 +76,14 @@ const YARD_TOUCH_DEADZONE = 0.6;
 /**
  * How much of the bouncing yard is on screen at once.
  *
- * Sized to the biggest bounce: the ceiling plus a whole unicorn plus a little
- * sky has to fit above the floor, and nothing more, or the ponies come out tiny
- * and the yard reads as mostly empty air.
+ * Sized to the biggest bounce: the mat, plus the ceiling above it, plus a whole
+ * unicorn, plus a little sky, all have to fit above the floor — and nothing
+ * more, or the ponies come out tiny and the yard reads as empty air. Getting
+ * this right is what keeps the view still: the camera can rise if a bounce
+ * would go off the top, and a view that slides under a bouncing child is
+ * seasick, so the point is that it never has to.
  */
-const YARD_VIEW_HEIGHT = 9.5;
+const YARD_VIEW_HEIGHT = 10.7;
 
 /**
  * The whole renderer works in sRGB byte space, so three must not helpfully

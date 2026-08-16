@@ -46,8 +46,26 @@ export const GATE_HOME = { x: YARD.minX + 1.6, reach: 2.1 };
  */
 const GATE_DWELL = 1.2;
 
-/** Where the trampoline is, how wide it is, and how high you stand on it. */
-const TRAMPOLINE = { x: 0, halfWidth: 3.1, top: 1.02 };
+/**
+ * The trampoline: where it stands, how big it is, and where the mat is.
+ *
+ * `width` is the real thing — nearly four ponies across — and both the picture
+ * and the bouncing are derived from it, which they were not before: the mat you
+ * could bounce on used to reach a whole unit past each painted edge, so a pony
+ * could be caught in mid-air over nothing. One number now, so they cannot drift
+ * apart again.
+ *
+ * `stand` is where the hooves go, as a fraction of the drawing's height — just
+ * on top of the padded rim. `grip` keeps the very edge of the mat from
+ * catching, so walking off the side is falling off rather than being flung.
+ */
+const TRAMPOLINE = { x: 0, width: 7.2, height: 1.4, stand: 0.9, grip: 0.93 };
+
+/** Derived once: where the surface is and how far it reaches either side. */
+const MAT = {
+  top: TRAMPOLINE.height * TRAMPOLINE.stand,
+  halfWidth: (TRAMPOLINE.width / 2) * TRAMPOLINE.grip,
+};
 
 /** Downward pull, in world units a second squared. */
 const GRAVITY = 30;
@@ -78,6 +96,17 @@ const AIR_DRAG = 2.2;
  * the view.
  */
 const BOUNCE = { keep: 0.86, gain: 3.4, first: 6.5, max: 17 };
+
+/**
+ * How much sideways speed the mat takes off you on each bounce.
+ *
+ * A bouncing pony is essentially never touching anything, so the rule that
+ * stops it dead when it lands never gets a chance to run and only the air drag
+ * applies — which left a child who ran on at full pelt coasting three units
+ * across and off the far side. A real mat grabs you as it throws you back, and
+ * so does this one: a couple of bounces and you are over the middle.
+ */
+const MAT_GRAB = 0.72;
 
 /** How fast a pony turns over in the air while a direction is held. */
 const SPIN_RATE = 9;
@@ -212,7 +241,12 @@ export class BounceYard {
     this.stand('grind', GATE_HOME.x, 2.4, LAYER_ORDER.groundDecal + 100);
     if (this.assets.has('studsmatta')) {
       const part = this.assets.get('studsmatta');
-      const mat = createSprite(part, { height: part.worldHeight });
+      const mat = createSprite(part, { height: TRAMPOLINE.height });
+      // Stretched wider than the drawing's own proportions. A garden
+      // trampoline really is long and low; the sprite came out with more frame
+      // and less mat than that, and widening it is what makes it read as
+      // something four ponies could bounce on at once.
+      mat.scale.x = TRAMPOLINE.width / (TRAMPOLINE.height * part.aspect);
       mat.position.set(TRAMPOLINE.x, YARD.floor, 0);
       // Behind the ponies, so a pony on the mat is never half-hidden by the rim
       // and one running past in front is never swallowed by it.
@@ -224,7 +258,7 @@ export class BounceYard {
 
   /** Where the trampoline's surface is, for anything that needs to know. */
   get matTop(): number {
-    return TRAMPOLINE.top;
+    return MAT.top;
   }
 
   /**
@@ -345,12 +379,12 @@ export class BounceYard {
 
   /** Handles arriving on the mat, climbing onto it, or coming down on grass. */
   private land(pony: Unicorn, wasY: number, dt: number): void {
-    const overMat = Math.abs(pony.x - TRAMPOLINE.x) < TRAMPOLINE.halfWidth;
+    const overMat = Math.abs(pony.x - TRAMPOLINE.x) < MAT.halfWidth;
 
     // Coming down onto the mat. Caught only on the way *down* and only from
     // above, so walking about beside the trampoline is never snatched upward.
-    if (overMat && this.vy <= 0 && wasY >= TRAMPOLINE.top && pony.y <= TRAMPOLINE.top) {
-      pony.y = TRAMPOLINE.top;
+    if (overMat && this.vy <= 0 && wasY >= MAT.top && pony.y <= MAT.top) {
+      pony.y = MAT.top;
       this.score(pony);
       const back = Math.min(
         BOUNCE.max,
@@ -362,6 +396,7 @@ export class BounceYard {
         return;
       }
       this.vy = back;
+      this.vx *= MAT_GRAB;
       this.onGround = false;
       this.events.onBounce?.(back / BOUNCE.max);
       return;
@@ -369,8 +404,8 @@ export class BounceYard {
 
     // Walking into the trampoline from the grass climbs onto it. Getting on is
     // not the game and should never be a puzzle: you walk at it and you are on.
-    if (overMat && this.onGround && pony.y < TRAMPOLINE.top) {
-      pony.y = Math.min(TRAMPOLINE.top, pony.y + CLIMB_RATE * dt);
+    if (overMat && this.onGround && pony.y < MAT.top) {
+      pony.y = Math.min(MAT.top, pony.y + CLIMB_RATE * dt);
       this.vy = 0;
       return;
     }
@@ -416,9 +451,9 @@ export class BounceYard {
       : midX;
 
     // The floor stays put on screen — a view that slides up and down under a
-    // bouncing child is seasick. It only ever rises if a bounce would otherwise
-    // go off the top, which with the current ceiling it never does; the term is
-    // there so that raising the ceiling later cannot quietly break the framing.
+    // bouncing child is seasick. It rises only at the very top of the very
+    // biggest bounces, which would otherwise go off the top of the screen, and
+    // by little enough that it reads as the height rather than as a camera.
     const resting = YARD.floor - GROUND_MARGIN + halfHeight;
     const needed = (pony?.y ?? 0) + HEADROOM - halfHeight;
     return { x, y: Math.max(resting, needed) };
