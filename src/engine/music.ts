@@ -61,9 +61,28 @@ export class Music {
     this.load();
 
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) this.audio?.pause();
+      if (document.hidden) this.stopNow();
       else if (this.enabled) void this.tryPlay();
     });
+    // Locking a phone or switching apps does not always announce itself as a
+    // visibility change on iOS, and pagehide is the one that does.
+    window.addEventListener('pagehide', () => this.stopNow());
+  }
+
+  /**
+   * Stops dead, for a page that is going away.
+   *
+   * Not faded: there is nobody there to hear a fade, and a fade that is still
+   * running when the tab is frozen is a fade that finishes whenever the tab
+   * happens to wake — possibly pausing a track the child has just come back
+   * to and started again.
+   */
+  private stopNow(): void {
+    if (this.fade !== null) {
+      window.clearInterval(this.fade);
+      this.fade = null;
+    }
+    this.audio?.pause();
   }
 
   /** True when there is anything to play — the HUD hides its button otherwise. */

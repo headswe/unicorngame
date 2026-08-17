@@ -53,6 +53,11 @@ export class Sfx {
   private master: GainNode | null = null;
   private reverbIn: GainNode | null = null;
   private noiseBuf: AudioBuffer | null = null;
+  /**
+   * False while the page is hidden. Nothing new starts and the engine stays
+   * down, whatever the frame loop asks for.
+   */
+  private awake = true;
 
   /**
    * The kart, which is the only sound in the game that is held rather than
@@ -81,10 +86,54 @@ export class Sfx {
   constructor(
     private readonly isEnabled: () => boolean,
     private readonly context?: BaseAudioContext,
-  ) {}
+  ) {
+    // Only the live game listens; a render script has no page to leave.
+    if (context || typeof document === 'undefined') return;
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') this.silence();
+      else this.awake = true;
+    });
+    // Locking a phone or switching apps does not always announce itself as a
+    // visibility change on iOS, and pagehide is the one that does.
+    window.addEventListener('pagehide', () => this.silence());
+    window.addEventListener('pageshow', () => {
+      this.awake = true;
+    });
+  }
+
+  /**
+   * Everything off, this instant.
+   *
+   * Called when the page goes away — another app on top of it, the screen
+   * locked, the tablet put down. Every other sound in here is a one-shot that
+   * has stopped by itself long before anyone notices, but the engine is a held
+   * voice: it keeps sounding until something stops it, and the frame loop that
+   * would have steered it down is not running either, so it holds whatever
+   * note it was on when the screen went away. Cut rather than faded — nobody
+   * is listening to the fade, that is the whole point.
+   */
+  private silence(): void {
+    // Set before anything is torn down: a browser that keeps running frames
+    // for a moment after hiding would otherwise have the frame loop start the
+    // engine again between this line and the next.
+    this.awake = false;
+    const engine = this.engine;
+    if (engine) {
+      this.engine = null;
+      for (const gain of [engine.growlGain, engine.whineGain, engine.slipGain]) {
+        gain.gain.cancelScheduledValues(0);
+        gain.gain.value = 0;
+      }
+      for (const node of [engine.growl, engine.whine, engine.slip]) node.stop();
+    }
+    // Suspended rather than closed: `ensure` resumes it on the next sound, so
+    // coming back needs nothing but something to play.
+    const live = this.ctx as AudioContext | null;
+    if (live && !this.context && live.state === 'running') void live.suspend();
+  }
 
   private ensure(): BaseAudioContext | null {
-    if (!this.isEnabled()) return null;
+    if (!this.isEnabled() || !this.awake) return null;
 
     if (!this.ctx) {
       if (this.context) {
