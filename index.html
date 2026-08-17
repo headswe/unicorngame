@@ -57,24 +57,71 @@
         gap: 0.5rem;
         pointer-events: none;
       }
-      /* The wardrobe button lives in the top-left corner rather than in the
-         bar along the bottom: it is the one control a child reaches for while
-         not doing anything else, and down there it crowded the hint line and
-         sat under a thumb during play. */
+      /* The two corner buttons: your unicorn top left, the sound top right.
+         They are up here rather than in the bar along the bottom because they
+         are the controls a child reaches for while not doing anything else,
+         and down there they crowded the hint line and sat under a thumb
+         during play. Both are round, the same size, and wordless. */
       .hud-corner {
         position: fixed;
         top: calc(0.7rem + env(safe-area-inset-top));
-        left: clamp(0.6rem, 3vw, 1.4rem);
+        width: 3.4rem;
+        height: 3.4rem;
+        padding: 0;
+        display: grid;
+        place-items: center;
+        font-size: 1.4rem;
+        line-height: 1;
+        border: 3px solid var(--ink);
+        border-radius: 50%;
+        background: #ffe07a;
+        box-shadow: 0 4px 0 rgba(74, 51, 39, 0.2);
+        cursor: pointer;
+        overflow: hidden;
         pointer-events: auto;
+        transition: transform 0.12s ease, background 0.12s ease;
         z-index: 5;
+      }
+      .hud-corner[hidden] {
+        display: none;
+      }
+      .hud-corner:active {
+        transform: translateY(2px) scale(0.97);
+      }
+      .hud-corner:focus-visible {
+        outline: 3px solid #2f6fb5;
+        outline-offset: 3px;
+      }
+      .hud-corner-left {
+        left: clamp(0.6rem, 3vw, 1.4rem);
+        padding: 0.18rem;
+      }
+      .hud-corner-left img {
+        /* Whole and centred: the head is taller than it is wide, so letting it
+           fill the circle cropped the horn off the top and the mane off the
+           side, which is most of what makes it a unicorn. */
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+      .hud-corner-left:hover {
+        background: #ffd147;
+      }
+      .hud-corner-right {
+        right: clamp(0.6rem, 3vw, 1.4rem);
+        background: #cfe9dd;
+      }
+      .hud-corner-right:hover {
+        background: #b9e0cf;
+      }
+      .hud-corner-right.off {
+        background: #ded8d2;
+        opacity: 0.75;
       }
       /* Starting lights, across the top where they cannot be missed. */
       .hud-lights {
         position: fixed;
-        /* Below the wardrobe button: on a phone held upright the button is wide
-           enough to reach the middle of the screen, and the lights landing on
-           top of it hid both. */
-        top: calc(4.3rem + env(safe-area-inset-top));
+        top: calc(0.9rem + env(safe-area-inset-top));
         left: 50%;
         transform: translateX(-50%);
         display: flex;
@@ -128,29 +175,6 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-      }
-      .hud-button {
-        font: inherit;
-        font-weight: bold;
-        font-size: 1rem;
-        color: var(--ink);
-        padding: 0.55rem 1.1rem;
-        min-height: 2.9rem;
-        border: 3px solid var(--ink);
-        border-radius: 999px;
-        background: #ffe07a;
-        cursor: pointer;
-        transition: transform 0.12s ease, background 0.12s ease;
-      }
-      .hud-button:hover {
-        background: #ffd147;
-      }
-      .hud-button:active {
-        transform: translateY(2px) scale(0.97);
-      }
-      .hud-button:focus-visible {
-        outline: 3px solid #2f6fb5;
-        outline-offset: 3px;
       }
       .hud-icon {
         font-size: 1.2rem;

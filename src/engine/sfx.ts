@@ -328,6 +328,13 @@ export class Sfx {
    * @param rolling false before the flag, when it should idle rather than rev.
    */
   revs(pace: number, slip: number, rolling: boolean): void {
+    // Turning the sound off mid-race has to actually stop it. Everything else
+    // here is a one-shot that simply never fires again, but an engine is
+    // already running and would drone on with nothing left to switch it off.
+    if (!this.isEnabled()) {
+      this.parked();
+      return;
+    }
     const engine = this.engine;
     const ctx = this.ctx;
     if (!engine || !ctx) return;

@@ -6,7 +6,7 @@
 
 import * as THREE from 'three';
 
-import { AssetLibrary } from './engine/assets.ts';
+import { AssetLibrary, partUrl } from './engine/assets.ts';
 import { Input } from './engine/input.ts';
 import { Music } from './engine/music.ts';
 import { Sfx } from './engine/sfx.ts';
@@ -247,7 +247,11 @@ async function start(): Promise<void> {
     onToggleMusic: () => music.toggle(),
     onCastSpell: () => openSpellbook(),
     onOpenWardrobe: () => openWardrobe(),
-  }, { hasMusic: music.available, musicOn: music.enabled });
+  }, {
+    hasMusic: music.available,
+    musicOn: music.enabled,
+    wardrobeIcon: partUrl('ikon_enhorning'),
+  });
   hud.setName(variant.name);
 
   // --- wardrobe -------------------------------------------------------------
@@ -830,6 +834,7 @@ async function start(): Promise<void> {
     onGrid = -1;
     lightStep = -1;
     hud.setLights(-1);
+    hud.setWardrobeShown(true);
     sfx.parked();
     player.x = PORTAL_SPOT.x;
     player.y = Math.max(WORLD_BOUNDS.minY, PORTAL_SPOT.y - PORTAL_LEAVE - 0.5);
@@ -841,6 +846,18 @@ async function start(): Promise<void> {
     sfx.magicOpen();
     followPlayer(0, true);
   };
+
+  /**
+   * Where you are in the race, as a word.
+   *
+   * Written out rather than as "1:a" and "2:a" — a six-year-old halfway
+   * through learning to read can sound out "tvåa" but has no idea what to do
+   * with a colon in the middle of a number. These are the everyday Swedish
+   * racing words, the ones you would say out loud watching from the sofa, and
+   * the grid never holds more than eight.
+   */
+  const PLACINGS = ['etta', 'tvåa', 'trea', 'fyra', 'femma', 'sexa', 'sjua', 'åtta'];
+  const placing = (spot: number): string | null => PLACINGS[spot - 1] ?? null;
 
   /**
    * Says what the racing dimension is doing, and puts this child on the grid.
@@ -875,6 +892,10 @@ async function start(): Promise<void> {
       hud.setLights(step);
       if (step >= 0) sfx.startLight(step);
     }
+
+    // Nothing to dress up for between the lights going on and the flag: the
+    // wardrobe goes away for the duration and comes back with the results.
+    hud.setWardrobeShown(race.phase !== 'countdown' && race.phase !== 'racing');
     if (racing && (slot !== onGrid || fresh)) {
       onGrid = slot;
       track.lineUp(worn, gridSlot(slot));
@@ -893,8 +914,8 @@ async function start(): Promise<void> {
         setLandmarkHint('Du tittar på. Du är med i nästa lopp!');
       } else {
         const lap = Math.min(LAPS, (race.laps[session.id] ?? 0) + 1);
-        const place = race.order.indexOf(session.id) + 1;
-        setLandmarkHint(`Varv ${lap}/${LAPS} · ${place || '-'}:a`);
+        const spot = placing(race.order.indexOf(session.id) + 1);
+        setLandmarkHint(spot ? `Varv ${lap}/${LAPS} · ${spot}` : `Varv ${lap}/${LAPS}`);
       }
     } else if (race.order.length === 0) {
       // A race with nobody in it, which is what the loop does when the track is
@@ -905,7 +926,7 @@ async function start(): Promise<void> {
       const mine = race.order.indexOf(session.id) + 1;
       const name = won === session.id ? 'Du' : visitors.nameOf(won) ?? 'Någon';
       if (mine === 1) setLandmarkHint('Du vann!');
-      else if (mine > 0) setLandmarkHint(`${name} vann! Du kom ${mine}:a.`);
+      else if (mine > 0) setLandmarkHint(`${name} vann! Du kom ${placing(mine)}.`);
       else setLandmarkHint(`${name} vann!`);
     }
   };
@@ -1023,6 +1044,10 @@ async function start(): Promise<void> {
       if (steer === 0 && input.pointer.down) steer = input.pointer.x < 0 ? -1 : 1;
       const rolling = race?.phase === 'racing' && race.grid[session.id] !== undefined;
       track.update(dt, { steer: busy ? 0 : steer, rolling });
+      // Asked for every frame rather than once on arrival: it does nothing
+      // while the engine is already running, and it is what starts it again
+      // for a child who turned the sound off and then changed their mind.
+      sfx.driving();
       sfx.revs(track.pace, track.slip, rolling);
       raceHint();
 

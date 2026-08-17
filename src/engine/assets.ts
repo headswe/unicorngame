@@ -6,7 +6,16 @@ import * as THREE from 'three';
 
 import manifest from '../generated/parts-manifest.json';
 
-export type PartKind = 'body' | 'horn' | 'mane' | 'tail' | 'pattern' | 'decor' | 'prop' | 'cloud';
+export type PartKind =
+  | 'body'
+  | 'horn'
+  | 'mane'
+  | 'tail'
+  | 'pattern'
+  | 'decor'
+  | 'prop'
+  | 'cloud'
+  | 'icon';
 
 export interface PartInfo {
   id: string;
@@ -24,7 +33,22 @@ export interface Part extends PartInfo {
   texture: THREE.Texture;
 }
 
-const PARTS = manifest as PartInfo[];
+// Icons are HUD chrome shown by the DOM as ordinary images, so they are in the
+// manifest — that is what tells the HUD where to find them — but there is no
+// reason to spend GPU memory uploading them as sprite textures.
+const PARTS = (manifest as PartInfo[]).filter((p) => p.kind !== 'icon');
+
+/**
+ * Where a part's PNG lives, for the bits of the game that are not sprites.
+ *
+ * Resolved against the document base, the same as `loadAll` does, because the
+ * game is served from a subdirectory on GitHub Pages and a bare relative path
+ * would look for it beside whatever page happened to load.
+ */
+export function partUrl(id: string, baseUrl = document.baseURI): string | null {
+  const url = (manifest as PartInfo[]).find((p) => p.id === id)?.url;
+  return url ? new URL(url, baseUrl).href : null;
+}
 
 export class AssetLibrary {
   private readonly parts = new Map<string, Part>();

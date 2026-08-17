@@ -627,6 +627,17 @@
     "tintable": false
   },
   {
+    "id": "ikon_enhorning",
+    "kind": "icon",
+    "label": "Min enhörning",
+    "url": "assets/parts/ikon_enhorning.png",
+    "width": 448,
+    "height": 512,
+    "aspect": 0.875,
+    "worldHeight": 1,
+    "tintable": false
+  },
+  {
     "id": "kullar",
     "kind": "decor",
     "label": "Kullar",

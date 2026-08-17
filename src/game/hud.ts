@@ -11,14 +11,16 @@ export interface HudCallbacks {
   onOpenWardrobe(): void;
   /** Opens the spellcasting overlay. */
   onCastSpell(): void;
-  /** Returns the new state: true when music is now playing. */
+  /** Returns the new state: true when the sound is now on. */
   onToggleMusic(): boolean;
 }
 
 export interface HudOptions {
-  /** Hides the music button when there is no music to play. */
+  /** Hides the sound button when there is no music to play. */
   hasMusic: boolean;
   musicOn: boolean;
+  /** The unicorn head that opens the wardrobe, or null to fall back to text. */
+  wardrobeIcon: string | null;
 }
 
 export class Hud {
@@ -28,6 +30,7 @@ export class Hud {
   private readonly tallyCount: HTMLSpanElement;
   private readonly friends: HTMLSpanElement;
   private readonly friendsCount: HTMLSpanElement;
+  private readonly wardrobe: HTMLButtonElement;
   private hint: string | null = null;
   private resting = 'Gå med pilarna · eller peka där du vill gå';
   /** While `performance.now()` is below this, ambient hints are held off. */
@@ -36,9 +39,19 @@ export class Hud {
   constructor(parent: HTMLElement, callbacks: HudCallbacks, options: HudOptions) {
     this.root = document.createElement('div');
     this.root.className = 'hud';
+    // The two corner buttons are the whole permanent menu: your unicorn on the
+    // left, the sound on the right. A six-year-old does not read a toolbar, so
+    // each is one picture, as far apart as the screen allows, and everything
+    // that is about where you are standing stays down at the bottom.
+    const face = options.wardrobeIcon
+      ? `<img src="${options.wardrobeIcon}" alt="" />`
+      : '<span aria-hidden="true">🦄</span>';
     this.root.innerHTML = `
-      <button type="button" class="hud-button hud-corner" aria-label="Ändra din enhörning">
-        <span aria-hidden="true">👗</span> Min enhörning
+      <button type="button" class="hud-corner hud-corner-left" aria-label="Ändra din enhörning">
+        ${face}
+      </button>
+      <button type="button" class="hud-corner hud-corner-right hud-music" aria-pressed="true">
+        <span aria-hidden="true">🔊</span>
       </button>
       <div class="hud-lights" hidden aria-hidden="true">
         <span class="hud-light hud-light-red"></span>
@@ -52,16 +65,13 @@ export class Hud {
         <button type="button" class="hud-icon hud-spell" aria-label="Trolla">
           <span aria-hidden="true">✨</span>
         </button>
-        <button type="button" class="hud-icon hud-music" aria-pressed="true">
-          <span aria-hidden="true">🎵</span>
-        </button>
       </div>
       <p class="hud-hint">Gå med pilarna · eller peka där du vill gå</p>
     `;
     parent.appendChild(this.root);
 
     const nameLabel = this.root.querySelector<HTMLSpanElement>('.hud-name');
-    const button = this.root.querySelector<HTMLButtonElement>('.hud-corner');
+    const button = this.root.querySelector<HTMLButtonElement>('.hud-corner-left');
     const music = this.root.querySelector<HTMLButtonElement>('.hud-music');
     const spell = this.root.querySelector<HTMLButtonElement>('.hud-spell');
     const tally = this.root.querySelector<HTMLSpanElement>('.hud-tally');
@@ -77,16 +87,19 @@ export class Hud {
     this.tallyCount = tallyCount;
     this.friends = friends;
     this.friendsCount = friendsCount;
+    this.wardrobe = button;
 
     if (!options.hasMusic) {
       music.remove();
     } else {
+      // One switch for everything you can hear — the music and the little
+      // sounds share it, and so does the engine out on the track.
       const paint = (on: boolean): void => {
         music.setAttribute('aria-pressed', String(on));
-        music.setAttribute('aria-label', on ? 'Stäng av musiken' : 'Sätt på musiken');
+        music.setAttribute('aria-label', on ? 'Stäng av ljudet' : 'Sätt på ljudet');
         music.classList.toggle('off', !on);
         const icon = music.firstElementChild;
-        if (icon) icon.textContent = on ? '🎵' : '🔇';
+        if (icon) icon.textContent = on ? '🔊' : '🔇';
       };
       paint(options.musicOn);
       music.addEventListener('click', (event) => {
@@ -168,6 +181,18 @@ export class Hud {
       const el = this.root.querySelector<HTMLParagraphElement>('.hud-hint');
       if (el) el.textContent = text;
     }
+  }
+
+  /**
+   * Takes the wardrobe button away, and puts it back.
+   *
+   * Used once the lights go up out on the track: there is nothing to be done
+   * in the wardrobe mid-race, the corner it lives in is where a child's thumb
+   * already is, and opening it over a race you cannot pause is a small
+   * disaster. It comes back the moment the chequered flag is out.
+   */
+  setWardrobeShown(shown: boolean): void {
+    this.wardrobe.hidden = !shown;
   }
 
   /**

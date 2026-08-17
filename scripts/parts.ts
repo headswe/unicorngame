@@ -35,7 +35,8 @@ export type PartKind =
   | 'pattern'
   | 'decor'
   | 'prop'
-  | 'cloud';
+  | 'cloud'
+  | 'icon';
 
 export interface PartSpec {
   /** Stable id, used in filenames and in save data. */
@@ -657,6 +658,25 @@ export const PARTS: PartSpec[] = [
       `${STYLE}. A small wispy white cloud, three soft rounded puffs joined ` +
       `together, painted in white with a hint of pale blue underneath. ` +
       `${ISOLATED}`,
+  },
+  // --- icons ----------------------------------------------------------------
+  // Chrome rather than scenery: drawn by the same hand as the rest so a button
+  // in the corner does not look like it was bolted on, but never loaded as a
+  // texture — the HUD is DOM and shows these as plain images.
+  {
+    id: 'ikon_enhorning',
+    kind: 'icon',
+    label: 'Min enhörning',
+    worldHeight: 1,
+    fullColour: true,
+    prompt:
+      `${STYLE}. Just the head and neck of a cute unicorn foal, seen from the ` +
+      `side in profile facing right, cut off cleanly at the base of the neck ` +
+      `with no body, no legs and nothing else. It has a short spiral horn, a ` +
+      `soft pink flowing forelock and mane, two ears, and one big friendly ` +
+      `eye with long eyelashes above a small smile. Its coat is creamy white. ` +
+      `Drawn simply and boldly so it still reads clearly at the size of a ` +
+      `thumbnail. ${ISOLATED}`,
   },
   {
     id: 'kullar',
