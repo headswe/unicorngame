@@ -65,6 +65,10 @@ export interface SessionCallbacks {
   onRoster(seeds: string[]): void;
   /** Where the herd is, ten times a second. */
   onHerd(poses: Array<[number, number, number, number, number]>): void;
+  /** A chunk of somebody else's line on the drawing board. */
+  onInk(stroke: string, by: string, colour: number, nib: number, xy: number[]): void;
+  /** Lines somebody rubbed out, whoever had drawn them. */
+  onRub(strokes: string[]): void;
   /** Ponies that are pleased about something. */
   onCheer(ponies: number[]): void;
   onStatus(status: NetStatus): void;
@@ -181,6 +185,18 @@ export class Session {
     this.transport.send({ t: 'eaten', id: this.id, berry });
   }
 
+  /** Sends a chunk of a line being drawn on the shared board. */
+  broadcastInk(stroke: string, colour: number, nib: number, xy: number[]): void {
+    if (this.status !== 'online') return;
+    this.transport.send({ t: 'ink', id: this.id, stroke, colour, nib, xy });
+  }
+
+  /** Tells everyone which lines were rubbed out. */
+  broadcastRub(strokes: string[]): void {
+    if (this.status !== 'online') return;
+    this.transport.send({ t: 'rub', id: this.id, strokes });
+  }
+
   /** Tells the simulation a pony was patted. It decides whether it counted. */
   pet(pony: number): void {
     if (this.status !== 'online') return;
@@ -255,6 +271,12 @@ export class Session {
         break;
       case 'eaten':
         this.callbacks.onEaten(message.berry);
+        break;
+      case 'ink':
+        this.callbacks.onInk(message.stroke, message.id, message.colour, message.nib, message.xy);
+        break;
+      case 'rub':
+        this.callbacks.onRub(message.strokes);
         break;
       case 'hatched':
         // Nothing to do: the egg on this screen is hatching on its own clock.

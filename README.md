@@ -28,6 +28,7 @@ play — only to draw new parts.
 | **✨** | Open the spellbook |
 | Walk to the letter table | Play the spelling game |
 | Walk into the gate | Go through to the bouncing yard |
+| Walk up to the easel | Draw on the board everybody shares |
 
 Both schemes are live at once, so a laptop and a tablet behave the same.
 
@@ -132,6 +133,25 @@ each child's own physics — a bounce is not something anybody else's connection
 should be able to stutter — and the others are drawn from their poses exactly
 the way visitors in the meadow are, at twice the rate because a bouncing pony
 crosses a lot of sky in a hurry.
+
+## The drawing board
+
+An easel stands in the meadow with one board on it that everybody draws on at
+once. Lines go out in chunks while a finger is still moving rather than when it
+lifts, so a cousin's flower arrives stroke by stroke — see `src/game/board.ts`
+for the store and `board-ui.ts` for the crayons.
+
+Anyone may rub out anyone's line. That is a decision, not an oversight: it is
+one family sharing one board. Undo is the exception and takes back the last
+thing *you* drew, because an undo that removed whatever your sister had just
+finished would be a lottery rather than an undo.
+
+The drawing is the same canvas in three places — the overlay shows it directly,
+the easel out in the field is textured from it, and the relay stores it for the
+day — so none of the three can fall out of step with the others. It is square
+because that is what a phone held upright can show; a landscape board would
+throw away half the drawing area. Where the white face sits inside the easel
+artwork is measured off the art itself by `scripts/board-face.mjs`.
 
 ## How the world is drawn
 

@@ -135,6 +135,37 @@ export interface EatenMessage {
   berry: string;
 }
 
+/**
+ * A chunk of a line being drawn on the shared board.
+ *
+ * Sent while the finger is still moving rather than when it lifts, so a line
+ * appears on every screen as it is drawn. The first chunk of a line carries its
+ * colour and thickness; later ones only add points to it, found by `stroke`.
+ */
+export interface InkMessage {
+  t: 'ink';
+  id: string;
+  /** Names this line, so chunks of it can find each other. */
+  stroke: string;
+  colour: number;
+  nib: number;
+  /** `[x0, y0, x1, y1, …]`, each 0..1000 across the board. */
+  xy: number[];
+}
+
+/**
+ * Lines rubbed out, by name.
+ *
+ * Anybody may rub out anybody's line — it is one family sharing one board — so
+ * this carries no claim about who owns what. Undo sends it too; the difference
+ * is only in which line the sender picked.
+ */
+export interface RubMessage {
+  t: 'rub';
+  id: string;
+  strokes: string[];
+}
+
 /** Somebody shovelled one. Named, so both screens remove the same poop. */
 export interface CleanMessage {
   t: 'clean';
@@ -178,6 +209,14 @@ export interface StateMessage {
   }>;
   /** Hatchlings. These outlive the day — a pony a child made is theirs. */
   foals: Array<{ foal: UnicornVariant; x: number; y: number }>;
+  /**
+   * What is on the drawing board. Every line, so a child who arrives after
+   * school sees the morning's drawing rather than a blank board.
+   *
+   * Optional because a relay that has not been redeployed yet will not send it,
+   * and a missing board should mean an empty one rather than a broken game.
+   */
+  strokes?: Array<{ id: string; by: string; colour: number; nib: number; xy: number[] }>;
 }
 
 /**
@@ -224,6 +263,8 @@ export interface ByeMessage {
 
 export type NetMessage =
   | HelloMessage
+  | InkMessage
+  | RubMessage
   | PoseMessage
   | SpellMessage
   | PoopMessage

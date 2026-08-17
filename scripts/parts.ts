@@ -400,6 +400,33 @@ export const PARTS: PartSpec[] = [
   ),
 
   /**
+   * The easel out in the meadow that everybody draws on together.
+   *
+   * Square, and not for looks: the children draw on this on a phone held
+ * upright, where a landscape board can only ever be as tall as the screen is
+ * wide. Square gives half as much drawing area again on the shape of screen
+ * they actually hold.
+ *
+ * The white face has to be a big clean rectangle with nothing on it, because
+   * the drawing is laid over it as a live texture and the game works out where
+   * to put that by finding the white area in this very image — see
+   * `BOARD_FACE` in `src/game/board.ts`. Anything painted on the board here
+   * would show through underneath what the children draw.
+   */
+  prop(
+    'stafflig',
+    'Ritbräda',
+    'A tall wooden artist easel seen straight from the front, holding one ' +
+      'large blank square whiteboard. The board is a plain square of ' +
+      'pure flat white, completely empty — no drawing, no lines, no shading, ' +
+      'no writing and no smudges anywhere on it — with a thin honey-coloured ' +
+      'wooden frame around its edge. Below the board a narrow wooden ledge ' +
+      'holds four fat crayons in red, blue, yellow and green, and the easel ' +
+      'stands on three sturdy honey-wood legs.',
+    2.8,
+  ),
+
+  /**
    * The gate through to the bouncing yard, and the trampoline in it.
    *
    * The gate stands in the meadow and is drawn in the meadow's own three-

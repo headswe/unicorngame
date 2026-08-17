@@ -47,6 +47,17 @@ const SAVE_DEBOUNCE = 3000;
 /** A cap so a stuck client cannot grow the file without bound. */
 const LIMITS = { cleaned: 4000, poops: 200, eggs: 40, foals: 300 };
 
+/**
+ * How much drawing the board will hold, and how long one line may be.
+ *
+ * The whole board goes to every child who joins, so this is really a cap on
+ * that one message. Three hundred lines of a hundred and twenty points comes
+ * to a few tens of kilobytes at worst, and a day's actual drawing is a
+ * fraction of that. Past the cap the oldest lines go rather than new ones
+ * being refused — a board that quietly stops accepting ink would be baffling.
+ */
+const BOARD_LIMITS = { strokes: 300, points: 120 };
+
 function today() {
   // Shifted back, so the small hours still count as yesterday and the meadow
   // never changes shape under a child who is still using it. en-CA is used
@@ -61,7 +72,7 @@ export function meadowSeed() {
 }
 
 function emptyDay(day) {
-  return { day, cleaned: [], poops: [], eggs: [], foals: [] };
+  return { day, cleaned: [], poops: [], eggs: [], foals: [], strokes: [] };
 }
 
 export class Meadow {
@@ -143,6 +154,37 @@ export class Meadow {
           this.#touch();
         }
         break;
+
+      case 'ink': {
+        if (typeof message.stroke !== 'string' || !Array.isArray(message.xy)) return true;
+        let line = s.strokes.find((l) => l.id === message.stroke);
+        if (!line) {
+          line = {
+            id: message.stroke,
+            by: message.id,
+            colour: message.colour | 0,
+            nib: message.nib | 0,
+            xy: [],
+          };
+          s.strokes.push(line);
+          while (s.strokes.length > BOARD_LIMITS.strokes) s.strokes.shift();
+        }
+        // A line that has run on long enough stops growing here as well as on
+        // the drawing side, so a stuck finger cannot fill the store.
+        const room = BOARD_LIMITS.points * 2 - line.xy.length;
+        if (room > 0) line.xy.push(...message.xy.slice(0, room));
+        this.#touch();
+        break;
+      }
+
+      case 'rub': {
+        if (!Array.isArray(message.strokes) || message.strokes.length === 0) return true;
+        const gone = new Set(message.strokes);
+        const before = s.strokes.length;
+        s.strokes = s.strokes.filter((l) => !gone.has(l.id));
+        if (s.strokes.length !== before) this.#touch();
+        break;
+      }
 
       case 'hatched': {
         // A magic flower can hold twins or triplets, so a hatch names one egg

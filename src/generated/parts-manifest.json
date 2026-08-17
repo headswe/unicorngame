@@ -451,6 +451,17 @@
     "tintable": false
   },
   {
+    "id": "stafflig",
+    "kind": "prop",
+    "label": "Ritbräda",
+    "url": "assets/parts/stafflig.png",
+    "width": 339,
+    "height": 512,
+    "aspect": 0.662109375,
+    "worldHeight": 2.8,
+    "tintable": false
+  },
+  {
     "id": "grind",
     "kind": "prop",
     "label": "Grind",

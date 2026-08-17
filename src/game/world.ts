@@ -14,6 +14,7 @@ import { makeRng, type Rng } from '../engine/rng.ts';
 import { createSprite, type Sprite } from '../engine/sprite.ts';
 import { depthOrder, PART_ORDER, projectY } from '../engine/view.ts';
 import { Backdrop } from './backdrop.ts';
+import { BOARD_FACE, type Board } from './board.ts';
 import { BLOOM_TIME, clutchSize, eggId } from '../../server/clutch.js';
 import { EggNest, HATCH_TIME } from './eggs.ts';
 import { MagicFlowers } from './flower.ts';
@@ -66,6 +67,13 @@ export const TABLE_SPOT = { x: -9.5, y: 14.5 };
 const TABLE_CLEARING = 4;
 
 /**
+ * And a wider one around the easel, because the easel is a thing you look *at*
+ * from across the field. A tree four units south of it is still tall enough to
+ * stand in front of the drawing, which defeats the point of hanging it there.
+ */
+const EASEL_CLEARING = 7;
+
+/**
  * The gate through to the bouncing yard.
  *
  * On the other side of spawn from the letter table, so a child wandering out of
@@ -73,6 +81,16 @@ const TABLE_CLEARING = 4;
  * thing you trip over first.
  */
 export const GATE_SPOT = { x: 8.5, y: 15.5 };
+
+/**
+ * The easel everybody draws on.
+ *
+ * South-east, which is the one quarter nothing else is in: the letter table is
+ * north-west and the gate north-east, so a child leaving the clearing finds a
+ * different thing whichever way they wander, and no two of them are close
+ * enough to hint over each other.
+ */
+export const EASEL_SPOT = { x: 6.5, y: 4 };
 
 interface ScatterSpec {
   id: string;
@@ -149,6 +167,11 @@ export class World {
   /** False only when the sprite is missing, which keeps the hint honest. */
   hasLetterTable = false;
   hasGate = false;
+  hasEasel = false;
+
+  /** The live drawing hung on the easel, and which version of it is uploaded. */
+  private boardTexture: THREE.CanvasTexture | null = null;
+  private boardShown = -1;
 
   constructor(
     private readonly assets: AssetLibrary,
@@ -243,7 +266,8 @@ export class World {
             !spec.avoidsClearing ||
             (Math.hypot(x - SPAWN.x, y - SPAWN.y) > CLEARING_RADIUS &&
               Math.hypot(x - TABLE_SPOT.x, y - TABLE_SPOT.y) > TABLE_CLEARING &&
-              Math.hypot(x - GATE_SPOT.x, y - GATE_SPOT.y) > TABLE_CLEARING);
+              Math.hypot(x - GATE_SPOT.x, y - GATE_SPOT.y) > TABLE_CLEARING &&
+              Math.hypot(x - EASEL_SPOT.x, y - EASEL_SPOT.y) > EASEL_CLEARING);
           if (clear) {
             placed = true;
             break;
@@ -445,6 +469,49 @@ export class World {
     this.hasGate = true;
   }
 
+  /**
+   * Stands the easel in the meadow and hangs the shared drawing on it.
+   *
+   * The drawing is the very canvas the overlay draws on, uploaded as a texture,
+   * so what is on the board in the field is what is on the board — never a copy
+   * that can fall behind. It is placed by the white rectangle measured off the
+   * easel artwork, which is why the two line up exactly.
+   */
+  showBoard(board: Board): void {
+    if (!this.assets.has('stafflig')) return;
+    const part = this.assets.get('stafflig');
+    const height = part.worldHeight;
+    const width = height * part.aspect;
+
+    this.plant(part, EASEL_SPOT.x, EASEL_SPOT.y, height, true);
+    this.hasEasel = true;
+
+    const texture = new THREE.CanvasTexture(board.canvas);
+    texture.colorSpace = THREE.LinearSRGBColorSpace;
+    texture.minFilter = THREE.LinearFilter;
+    texture.generateMipmaps = false;
+
+    const faceWidth = BOARD_FACE.width * width;
+    const faceHeight = BOARD_FACE.height * height;
+    const sprite = createSprite(
+      { ...part, texture, aspect: faceWidth / faceHeight },
+      { height: faceHeight, pivotY: 0.5 },
+    );
+    sprite.position.set(
+      EASEL_SPOT.x + (BOARD_FACE.x + BOARD_FACE.width / 2 - 0.5) * width,
+      projectY(EASEL_SPOT.y) + (BOARD_FACE.y + BOARD_FACE.height / 2) * height,
+      0,
+    );
+    // Over the easel's own white face, under nothing else standing here.
+    sprite.renderOrder = depthOrder(EASEL_SPOT.y) + PART_ORDER.pattern;
+    this.decor.add(sprite);
+
+    this.boardTexture = texture;
+    this.board = board;
+  }
+
+  private board: Board | null = null;
+
   /** Removes the shovel from the grass once it has been picked up. */
   takeShovel(): void {
     this.shovelSprite?.removeFromParent();
@@ -464,6 +531,12 @@ export class World {
     this.growBlooms(dt);
     this.flowers.update(dt);
     this.eggs.update(dt);
+
+    // The easel only re-uploads when somebody has actually drawn something.
+    if (this.board && this.boardTexture && this.board.version !== this.boardShown) {
+      this.boardShown = this.board.version;
+      this.boardTexture.needsUpdate = true;
+    }
   }
 
   private growBlooms(dt: number): void {

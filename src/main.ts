@@ -29,7 +29,9 @@ import { meadowDay, meadowSeed } from './game/day.ts';
 import { EAT_RADIUS } from './game/treats.ts';
 import { Marker, MINE } from './game/marker.ts';
 import { Visitors } from './game/visitors.ts';
-import { World, WORLD_BOUNDS, GATE_SPOT, SHOVEL_SPOT, TABLE_SPOT } from './game/world.ts';
+import { Board } from './game/board.ts';
+import { BoardUi } from './game/board-ui.ts';
+import { World, WORLD_BOUNDS, EASEL_SPOT, GATE_SPOT, SHOVEL_SPOT, TABLE_SPOT } from './game/world.ts';
 import { BounceYard } from './game/yard.ts';
 import { Herd, HERD_HZ, RESIDENTS, WORLD_BOUNDS as SIM_BOUNDS } from '../server/herd.js';
 import type { Place } from './net/protocol.ts';
@@ -59,6 +61,10 @@ const TABLE_REACH = 2.2;
 const TABLE_LEAVE = 3.6;
 /** How near the table has to be before the hint points it out. */
 const TABLE_NOTICE = 9;
+
+/** How close to the easel you have to stand to start drawing, and to leave. */
+const EASEL_REACH = 2.4;
+const EASEL_LEAVE = 4;
 
 /** How close to the gate you have to stand to go through to the yard. */
 const GATE_REACH = 2.2;
@@ -186,6 +192,17 @@ async function start(): Promise<void> {
    * are down and held for the whole of a jump.
    */
   let yardTouch = 0;
+
+  /**
+   * The shared drawing. One object: the overlay draws on it, the easel out in
+   * the meadow is textured from it, and the network fills it in from everyone
+   * else — so the board in the field and the board under a child's finger are
+   * literally the same picture.
+   */
+  const board = new Board();
+  // Hangs it on the easel out in the meadow as well, so a drawing is something
+  // you can see from across the field rather than only once you are at it.
+  world.showBoard(board);
 
   let openSpellbook = (): void => undefined;
   let openWardrobe = (): void => undefined;
@@ -426,6 +443,8 @@ async function start(): Promise<void> {
       // A friend's record of the tidying, adopted so today's presents are not
       // all put back the moment a latecomer works out that they happened.
       onCleanedList: (poops) => world.poop.forget(poops),
+      onInk: (stroke, by, colour, nib, xy) => board.ink(stroke, by, colour, nib, xy),
+      onRub: (strokes) => board.remove(strokes),
       // The meadow as the relay remembers it: the tidying already done, the
       // eggs still waiting, and the foals from earlier days. Everything else —
       // the field, the herd, the residents' droppings — regenerates from the
@@ -451,6 +470,9 @@ async function start(): Promise<void> {
         }
         world.poop.forget(state.cleaned);
         for (const p of state.poops) world.poop.spawn(p.id, p.x, p.y);
+        // The board as the relay remembers it, so a child who comes in after
+        // school finds this morning's drawing rather than a blank easel.
+        board.load(state.strokes ?? []);
 
         const now = Date.now() / 1000;
         for (const egg of state.eggs) {
@@ -493,6 +515,45 @@ async function start(): Promise<void> {
   // The player's own unicorn is a pony like any other. Rarer, so it reads as a
   // surprise rather than a nuisance while you are trying to tidy up.
   let playerPoopIn = 30 + Math.random() * 40;
+
+  // --- the drawing board -----------------------------------------------------
+
+  const boardUi = new BoardUi(container, board, session.id, {
+    onInk: (stroke, colour, nib, xy) => session.broadcastInk(stroke, colour, nib, xy),
+    onRub: (strokes) => {
+      // Applied here as well as sent, so a rubbed line goes at once rather than
+      // after a round trip — and so it still works with nobody else about.
+      board.remove(strokes);
+      session.broadcastRub(strokes);
+    },
+    onClose: () => {
+      atEasel = true;
+      controller.stop();
+    },
+    onSound: (kind) => {
+      if (kind === 'open') sfx.magicOpen();
+      else if (kind === 'undo') sfx.pickup();
+      else sfx.sparkle();
+    },
+  });
+  /** True while standing at the easel, so closing it does not reopen it. */
+  let atEasel = false;
+
+  const easel = (): void => {
+    if (!world.hasEasel || boardUi.open) return;
+    const away = Math.hypot(player.x - EASEL_SPOT.x, player.y - EASEL_SPOT.y);
+    if (atEasel && away > EASEL_LEAVE) atEasel = false;
+
+    if (!atEasel && away < EASEL_REACH) {
+      atEasel = true;
+      controller.stop();
+      boardUi.show();
+      return;
+    }
+    if (!atEasel && away < TABLE_NOTICE && !nearTable) {
+      setLandmarkHint('Ritbrädan! Gå fram och rita.');
+    }
+  };
 
   // --- the letter table ------------------------------------------------------
   // The spelling game has no button: you have to walk to the little table with
@@ -757,7 +818,7 @@ async function start(): Promise<void> {
     Object.assign(window, {
       angen: {
         world, camera, assets, music, sfx, input, spelling, wardrobe,
-        session, visitors,
+        session, visitors, board, boardUi, yard,
         get player() { return player; },
       },
     });
@@ -775,7 +836,7 @@ async function start(): Promise<void> {
 
     wardrobe.tick();
 
-    const busy = spellUi.open || wardrobe.open || spelling.open;
+    const busy = spellUi.open || wardrobe.open || spelling.open || boardUi.open;
 
     if (place === 'studs') {
       // Arrows on a laptop; on a phone there are none, so a finger held to one
@@ -801,6 +862,7 @@ async function start(): Promise<void> {
       caretaking(dt);
       controller.update(dt, input, camera, viewport);
       gateways();
+      easel();
     }
 
     // The meadow keeps going while a child is over the fence: the herd wanders,

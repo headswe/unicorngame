@@ -715,6 +715,141 @@
           animation: none;
         }
       }
+
+      /* --- the drawing board ------------------------------------------- */
+      .board {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        display: grid;
+        place-items: center;
+        background: rgba(40, 62, 54, 0.55);
+        backdrop-filter: blur(3px);
+        padding: 0.6rem;
+      }
+      .board[hidden] {
+        display: none;
+      }
+      .board-panel {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+        width: min(96vw, 60rem);
+        max-height: 96vh;
+      }
+      .board-sheet {
+        background: #fffdf8;
+        border: 5px solid var(--ink);
+        border-radius: 1rem;
+        box-shadow: 0 8px 0 rgba(74, 51, 39, 0.22);
+        overflow: hidden;
+        /* Matches the easel's own board, so what is drawn is what hangs in the
+           meadow — no letterboxing and nothing stretched. */
+        aspect-ratio: 900 / 882;
+        min-height: 0;
+      }
+      .board-canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+        cursor: crosshair;
+      }
+      .board-canvas.rubbing {
+        cursor: cell;
+      }
+      .board-tools {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        background: linear-gradient(#fffaf2, #f2f7ef);
+        border: 4px solid var(--ink);
+        border-radius: 1.2rem;
+        box-shadow: 0 6px 0 rgba(74, 51, 39, 0.2);
+        padding: 0.5rem 0.7rem;
+      }
+      .board-crayons,
+      .board-nibs {
+        display: flex;
+        gap: 0.35rem;
+      }
+      .board-crayon {
+        width: 2.2rem;
+        height: 2.2rem;
+        border-radius: 50%;
+        border: 3px solid var(--ink);
+        background: var(--crayon);
+        cursor: pointer;
+        padding: 0;
+      }
+      .board-crayon.on {
+        outline: 4px solid #ffc44a;
+        outline-offset: 2px;
+        transform: translateY(-3px);
+      }
+      .board-nib {
+        width: 2.2rem;
+        height: 2.2rem;
+        display: grid;
+        place-items: center;
+        border-radius: 0.7rem;
+        border: 3px solid var(--ink);
+        background: #fffdf8;
+        cursor: pointer;
+        padding: 0;
+      }
+      .board-nib span {
+        display: block;
+        border-radius: 50%;
+        background: var(--ink);
+      }
+      .board-nib.on,
+      .board-tool.on {
+        background: #ffe9a8;
+        outline: 4px solid #ffc44a;
+        outline-offset: 2px;
+      }
+      .board-tool {
+        width: 2.6rem;
+        height: 2.4rem;
+        font-size: 1.2rem;
+        line-height: 1;
+        border-radius: 0.7rem;
+        border: 3px solid var(--ink);
+        background: #fffdf8;
+        cursor: pointer;
+        padding: 0;
+      }
+      .board-close {
+        position: absolute;
+        top: -0.5rem;
+        right: -0.5rem;
+        z-index: 1;
+        width: 2.6rem;
+        height: 2.6rem;
+        border-radius: 50%;
+        border: 4px solid var(--ink);
+        background: #ffd9e2;
+        font-size: 1.1rem;
+        font-weight: 800;
+        color: var(--ink);
+        cursor: pointer;
+      }
+      /* Standing up, the crayons go down the side and the sheet gets the rest. */
+      @media (orientation: portrait) {
+        .board-tools {
+          gap: 0.35rem;
+          padding: 0.4rem 0.5rem;
+        }
+        .board-crayon,
+        .board-nib {
+          width: 1.9rem;
+          height: 1.9rem;
+        }
+      }
     </style>
   </head>
   <body>
