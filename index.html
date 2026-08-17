@@ -296,6 +296,32 @@
           opacity: 1;
         }
       }
+      /* The map of the meadow, under the sound button and mirroring the lap
+         board on the other side. Fixed 12:5, which is the shape of the field
+         itself — a map of a different shape than the thing it maps is a map
+         that has to be read rather than glanced at. */
+      .minimap {
+        position: fixed;
+        top: calc(4.6rem + env(safe-area-inset-top));
+        right: var(--edge);
+        width: clamp(8.5rem, 41vw, 13rem);
+        aspect-ratio: 12 / 5;
+        padding: 0.2rem;
+        background: rgba(143, 194, 161, 0.9);
+        border: 3px solid var(--ink);
+        border-radius: 0.7rem;
+        box-shadow: 0 4px 0 rgba(74, 51, 39, 0.22);
+        pointer-events: none;
+        z-index: 4;
+      }
+      .minimap[hidden] {
+        display: none;
+      }
+      .minimap-canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
       /* Lap and placing, down the left. Big enough to read out of the corner
          of an eye at speed, which is the only way it gets read at all. */
       .hud-board {

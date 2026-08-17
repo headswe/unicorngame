@@ -41,6 +41,7 @@ import {
   TABLE_SPOT,
 } from './game/world.ts';
 import { BounceYard } from './game/yard.ts';
+import { Minimap, type MapPony } from './game/minimap.ts';
 import { Pad } from './game/pad.ts';
 import { RaceTrack, TRACK_PORTAL, TRACK_VIEW_HEIGHT } from './game/racetrack.ts';
 import { CENTRE, LAPS, gridSlot, locate } from '../server/track.js';
@@ -254,6 +255,7 @@ async function start(): Promise<void> {
   });
   const pad = new Pad(container, input);
   pad.setShape('walk');
+  const minimap = new Minimap(container, assets);
 
   // --- wardrobe -------------------------------------------------------------
   let worn = variant;
@@ -1069,6 +1071,14 @@ async function start(): Promise<void> {
     // only ever left and right; an open overlay gets no arrows at all.
     pad.setShape(busy ? 'none' : place === 'angen' ? 'walk' : 'sides');
     hud.setMagicShown(place === 'angen');
+    minimap.setShown(place === 'angen' && !busy);
+    if (place === 'angen' && !busy) {
+      const onMap: MapPony[] = [{ x: player.x, y: player.y, colour: worn.coat, mine: true }];
+      for (const other of visitors.inPlace('angen')) {
+        onMap.push({ x: other.pose.x, y: other.pose.y, colour: other.variant.coat, mine: false });
+      }
+      minimap.update(dt, onMap);
+    }
 
     if (place === 'bana') {
       // Steering only: a kart drives itself. Arrows on a laptop, and on a phone
