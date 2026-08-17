@@ -25,12 +25,13 @@ export interface HudOptions {
 
 export class Hud {
   private readonly root: HTMLDivElement;
-  private readonly nameLabel: HTMLSpanElement;
+  private readonly counts: HTMLDivElement;
   private readonly tally: HTMLSpanElement;
   private readonly tallyCount: HTMLSpanElement;
   private readonly friends: HTMLSpanElement;
   private readonly friendsCount: HTMLSpanElement;
   private readonly wardrobe: HTMLButtonElement;
+  private readonly magic: HTMLButtonElement;
   private hint: string | null = null;
   private shout: string | null = null;
   private resting = 'Gå med pilarna · eller peka där du vill gå';
@@ -64,19 +65,18 @@ export class Hud {
         <span class="hud-board-lap"></span>
         <span class="hud-board-spot"></span>
       </div>
-      <div class="hud-card">
-        <span class="hud-name"></span>
+      <div class="hud-counts">
         <span class="hud-tally" hidden><span class="hud-tally-icon" aria-hidden="true">💩</span><span class="hud-tally-count">0</span></span>
         <span class="hud-friends" hidden><span aria-hidden="true">🦄</span><span class="hud-friends-count">0</span></span>
-        <button type="button" class="hud-icon hud-spell" aria-label="Trolla">
-          <span aria-hidden="true">✨</span>
-        </button>
       </div>
+      <button type="button" class="hud-corner hud-corner-magic hud-spell" aria-label="Trolla">
+        <span aria-hidden="true">✨</span>
+      </button>
       <p class="hud-hint">Gå med pilarna · eller peka där du vill gå</p>
     `;
     parent.appendChild(this.root);
 
-    const nameLabel = this.root.querySelector<HTMLSpanElement>('.hud-name');
+    const counts = this.root.querySelector<HTMLDivElement>('.hud-counts');
     const button = this.root.querySelector<HTMLButtonElement>('.hud-corner-left');
     const music = this.root.querySelector<HTMLButtonElement>('.hud-music');
     const spell = this.root.querySelector<HTMLButtonElement>('.hud-spell');
@@ -84,16 +84,17 @@ export class Hud {
     const tallyCount = this.root.querySelector<HTMLSpanElement>('.hud-tally-count');
     const friends = this.root.querySelector<HTMLSpanElement>('.hud-friends');
     const friendsCount = this.root.querySelector<HTMLSpanElement>('.hud-friends-count');
-    if (!nameLabel || !button || !music || !tally || !tallyCount || !spell) {
+    if (!counts || !button || !music || !tally || !tallyCount || !spell) {
       throw new Error('hud markup did not build');
     }
     if (!friends || !friendsCount) throw new Error('hud markup did not build');
-    this.nameLabel = nameLabel;
+    this.counts = counts;
     this.tally = tally;
     this.tallyCount = tallyCount;
     this.friends = friends;
     this.friendsCount = friendsCount;
     this.wardrobe = button;
+    this.magic = spell;
 
     if (!options.hasMusic) {
       music.remove();
@@ -132,10 +133,6 @@ export class Hud {
     for (const type of ['pointerdown', 'pointerup'] as const) {
       this.root.addEventListener(type, (e) => e.stopPropagation());
     }
-  }
-
-  setName(name: string): void {
-    this.nameLabel.textContent = name;
   }
 
   /** Shows the tally of poops shovelled, once there is a shovel to do it with. */
@@ -240,15 +237,27 @@ export class Hud {
   }
 
   /**
-   * Takes the wardrobe button away, and puts it back.
+   * Clears the screen for a race, and puts it back afterwards.
    *
-   * Used once the lights go up out on the track: there is nothing to be done
-   * in the wardrobe mid-race, it lives in the corner where a child's thumb
-   * already is, and opening it over a race you cannot pause is a small
-   * disaster. It comes back the moment the chequered flag is out.
+   * The wardrobe button goes: there is nothing to be done in there mid-race,
+   * it lives in the corner where a child's thumb already is, and opening it
+   * over a race you cannot pause is a small disaster. The counters go too —
+   * they share the top of the screen with the starting lights, and neither is
+   * anything to do with the race. Both come back with the chequered flag.
    */
-  setWardrobeShown(shown: boolean): void {
-    this.wardrobe.hidden = !shown;
+  setRacing(racing: boolean): void {
+    if (this.wardrobe.hidden === racing) return;
+    this.wardrobe.hidden = racing;
+    this.counts.hidden = racing;
+  }
+
+  /**
+   * Whether the magic button is up. Spells are a meadow thing, and a sparkle
+   * button beside a go-kart only invites a child to find out it does nothing.
+   */
+  setMagicShown(shown: boolean): void {
+    if (this.magic.hidden === !shown) return;
+    this.magic.hidden = !shown;
   }
 
   /**

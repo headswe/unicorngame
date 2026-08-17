@@ -105,6 +105,19 @@ export class Input {
     return this.held.has(code);
   }
 
+  /**
+   * Holds or releases a key from somewhere other than a keyboard.
+   *
+   * The on-screen buttons press real arrow keys rather than having their own
+   * path through the game: every place — the meadow, the bouncing yard, the
+   * racing dimension — already reads `moveAxis`, and a second way of saying
+   * "left" would be a second thing to keep in step with the first.
+   */
+  hold(code: string, down: boolean): void {
+    if (down) this.held.add(code);
+    else this.held.delete(code);
+  }
+
   /** Publishes the edge-triggered flags for this frame. Call once per frame. */
   beginFrame(): void {
     this.pointer.pressed = this.pressedThisFrame;

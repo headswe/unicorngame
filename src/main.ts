@@ -41,6 +41,7 @@ import {
   TABLE_SPOT,
 } from './game/world.ts';
 import { BounceYard } from './game/yard.ts';
+import { Pad } from './game/pad.ts';
 import { RaceTrack, TRACK_PORTAL, TRACK_VIEW_HEIGHT } from './game/racetrack.ts';
 import { CENTRE, LAPS, gridSlot, locate } from '../server/track.js';
 import { PHASES } from '../server/race.js';
@@ -185,7 +186,6 @@ async function start(): Promise<void> {
       world.scene.add(replacement.group);
     }
     player.update(0, false);
-    hud.setName(next.name);
   };
 
   const yard = new BounceYard(assets);
@@ -252,7 +252,8 @@ async function start(): Promise<void> {
     musicOn: music.enabled,
     wardrobeIcon: partUrl('ikon_enhorning'),
   });
-  hud.setName(variant.name);
+  const pad = new Pad(container, input);
+  pad.setShape('walk');
 
   // --- wardrobe -------------------------------------------------------------
   let worn = variant;
@@ -773,8 +774,8 @@ async function start(): Promise<void> {
     myMarker.group.removeFromParent();
     yard.scene.add(myMarker.group);
     sfx.magicOpen();
-    hud.setRestingHint('Peka bredvid din enhörning för att gå');
-    hud.announce('Studsa! Håll kvar fingret i luften så slår du en volt.', 9);
+    hud.setRestingHint('Gå med pilarna · eller peka bredvid din enhörning');
+    hud.announce('Studsa! Håll pilen intryckt medan du är i luften så slår du en volt.', 9);
   };
 
   const leaveYard = (): void => {
@@ -823,7 +824,7 @@ async function start(): Promise<void> {
     // The engine runs for as long as the child is in the racing dimension —
     // idling on the grid, revving on the track — and stops at the portal.
     sfx.driving();
-    hud.setRestingHint('Peka åt sidan för att svänga');
+    hud.setRestingHint('Sväng med pilarna · eller peka åt sidan');
   };
 
   const leaveTrack = (): void => {
@@ -836,7 +837,7 @@ async function start(): Promise<void> {
     hud.setLights(-1);
     hud.setShout(null);
     hud.setBoard(null, null);
-    hud.setWardrobeShown(true);
+    hud.setRacing(false);
     sfx.parked();
     player.x = PORTAL_SPOT.x;
     player.y = Math.max(WORLD_BOUNDS.minY, PORTAL_SPOT.y - PORTAL_LEAVE - 0.5);
@@ -904,7 +905,7 @@ async function start(): Promise<void> {
 
     // Nothing to dress up for between the lights going on and the flag: the
     // wardrobe goes away for the duration and comes back with the results.
-    hud.setWardrobeShown(race.phase !== 'countdown' && race.phase !== 'racing');
+    hud.setRacing(race.phase === 'countdown' || race.phase === 'racing');
     if (racing && (slot !== onGrid || fresh)) {
       onGrid = slot;
       track.lineUp(worn, gridSlot(slot));
@@ -1060,6 +1061,14 @@ async function start(): Promise<void> {
     wardrobe.tick();
 
     const busy = spellUi.open || wardrobe.open || spelling.open || boardUi.open;
+
+    // Decided here rather than in each of the four doorways between places:
+    // one rule, in one place, that cannot be half-applied by a route through
+    // the game nobody thought to update. Both calls do nothing when nothing
+    // has changed. The meadow is walk-anywhere; the yard and the track are
+    // only ever left and right; an open overlay gets no arrows at all.
+    pad.setShape(busy ? 'none' : place === 'angen' ? 'walk' : 'sides');
+    hud.setMagicShown(place === 'angen');
 
     if (place === 'bana') {
       // Steering only: a kart drives itself. Arrows on a laptop, and on a phone

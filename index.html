@@ -19,6 +19,12 @@
       :root {
         color-scheme: light;
         --ink: #4a3327;
+        /* The bottom row: the arrows on the left, the magic button on the
+           right, and the hint line kept clear above both. */
+        --key: clamp(3.2rem, 15vw, 4.4rem);
+        --key-gap: 0.4rem;
+        --edge: clamp(0.6rem, 3vw, 1.4rem);
+        --floor: calc(0.9rem + env(safe-area-inset-bottom));
       }
       * {
         box-sizing: border-box;
@@ -50,7 +56,11 @@
       .hud {
         position: fixed;
         inset: auto 0 0 0;
-        padding: 0.9rem clamp(0.8rem, 3vw, 2rem) calc(0.9rem + env(safe-area-inset-bottom));
+        /* Cleared over the arrows, at the height they take when the full
+           cross is out. Held constant rather than following the shape, so the
+           hint does not hop up and down as a child walks between places. */
+        padding: 0.9rem clamp(0.8rem, 3vw, 2rem)
+          calc(var(--floor) + var(--key) * 2 + var(--key-gap) + 0.5rem);
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -93,7 +103,7 @@
         outline-offset: 3px;
       }
       .hud-corner-left {
-        left: clamp(0.6rem, 3vw, 1.4rem);
+        left: var(--edge);
         padding: 0.18rem;
       }
       .hud-corner-left img {
@@ -108,7 +118,7 @@
         background: #ffd147;
       }
       .hud-corner-right {
-        right: clamp(0.6rem, 3vw, 1.4rem);
+        right: var(--edge);
         background: #cfe9dd;
       }
       .hud-corner-right:hover {
@@ -117,6 +127,94 @@
       .hud-corner-right.off {
         background: #ded8d2;
         opacity: 0.75;
+      }
+      /* Magic, down in the other bottom corner from the arrows: one thumb
+         steers and the other casts, which is the way a child holds a tablet
+         anyway. Sized to match an arrow so the bottom row looks deliberate. */
+      .hud-corner-magic {
+        top: auto;
+        bottom: var(--floor);
+        right: var(--edge);
+        width: var(--key);
+        height: var(--key);
+        font-size: 1.6rem;
+        background: #ffd9f0;
+      }
+      .hud-corner-magic:hover {
+        background: #ffc2e6;
+      }
+      /* The arrows. Big, close together and always in the same place, because
+         a child who has to look for a control has already stopped playing. */
+      .pad {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: var(--floor);
+        height: calc(var(--key) * 2 + var(--key-gap));
+        pointer-events: none;
+        z-index: 5;
+      }
+      .pad[hidden] {
+        display: none;
+      }
+      .pad-key {
+        position: absolute;
+        width: var(--key);
+        height: var(--key);
+        display: grid;
+        place-items: center;
+        padding: 0;
+        font-size: calc(var(--key) * 0.42);
+        line-height: 1;
+        color: var(--ink);
+        border: 3px solid var(--ink);
+        border-radius: 30%;
+        background: rgba(255, 250, 240, 0.82);
+        box-shadow: 0 4px 0 rgba(74, 51, 39, 0.22);
+        cursor: pointer;
+        pointer-events: auto;
+        touch-action: none;
+        transition: transform 0.08s ease, background 0.08s ease;
+      }
+      .pad-key.down {
+        background: #ffe07a;
+        transform: translateY(3px) scale(0.96);
+        box-shadow: 0 1px 0 rgba(74, 51, 39, 0.22);
+      }
+      .pad-key:focus-visible {
+        outline: 3px solid #2f6fb5;
+        outline-offset: 3px;
+      }
+      /* The meadow: walk any way, so a T of four in the bottom left. */
+      .pad[data-shape='walk'] .pad-up {
+        left: calc(var(--edge) + var(--key) + var(--key-gap));
+        bottom: calc(var(--key) + var(--key-gap));
+      }
+      .pad[data-shape='walk'] .pad-left {
+        left: var(--edge);
+        bottom: 0;
+      }
+      .pad[data-shape='walk'] .pad-down {
+        left: calc(var(--edge) + var(--key) + var(--key-gap));
+        bottom: 0;
+      }
+      .pad[data-shape='walk'] .pad-right {
+        left: calc(var(--edge) + (var(--key) + var(--key-gap)) * 2);
+        bottom: 0;
+      }
+      /* The yard and the track only ever ask for left or right, so they get
+         one under each thumb rather than two side by side under one. */
+      .pad[data-shape='sides'] .pad-up,
+      .pad[data-shape='sides'] .pad-down {
+        display: none;
+      }
+      .pad[data-shape='sides'] .pad-left {
+        left: var(--edge);
+        bottom: 0;
+      }
+      .pad[data-shape='sides'] .pad-right {
+        right: var(--edge);
+        bottom: 0;
       }
       /* Starting lights, across the top where they cannot be missed. */
       .hud-lights {
@@ -165,7 +263,7 @@
       .hud-shout {
         position: fixed;
         /* Above the middle: clear of the lap board in the top left, clear of
-           the kart in the centre, and clear of the name card at the bottom. */
+           the kart in the centre, and clear of the arrows at the bottom. */
         top: 30%;
         left: 50%;
         transform: translateX(-50%);
@@ -255,57 +353,21 @@
           animation: none;
         }
       }
-      .hud-card {
+      /* The counters, loose across the top rather than in a bar of their own.
+         They are the only thing left of the old name card: a child knows what
+         their own unicorn is called without being told every frame. */
+      .hud-counts {
+        position: fixed;
+        top: calc(0.9rem + env(safe-area-inset-top));
+        left: 50%;
+        transform: translateX(-50%);
         display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        padding: 0.4rem 0.5rem 0.4rem 1rem;
-        background: rgba(255, 255, 255, 0.88);
-        border: 3px solid var(--ink);
-        border-radius: 999px;
-        box-shadow: 0 6px 0 rgba(74, 51, 39, 0.18);
-        pointer-events: auto;
+        gap: 0.5rem;
+        pointer-events: none;
+        z-index: 4;
       }
-      .hud-name {
-        font-size: 1.15rem;
-        font-weight: bold;
-        max-width: 40vw;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      .hud-icon {
-        font-size: 1.2rem;
-        line-height: 1;
-        width: 2.9rem;
-        height: 2.9rem;
-        display: grid;
-        place-items: center;
-        border: 3px solid var(--ink);
-        border-radius: 50%;
-        background: #cfe9dd;
-        cursor: pointer;
-        transition: transform 0.12s ease, background 0.12s ease;
-      }
-      .hud-icon:hover {
-        background: #b9e0cf;
-      }
-      .hud-icon:active {
-        transform: translateY(2px) scale(0.97);
-      }
-      .hud-icon:focus-visible {
-        outline: 3px solid #2f6fb5;
-        outline-offset: 3px;
-      }
-      .hud-spell {
-        background: #ffd9f0;
-      }
-      .hud-spell:hover {
-        background: #ffc2e6;
-      }
-      .hud-icon.off {
-        background: #e6e0da;
-        opacity: 0.75;
+      .hud-counts[hidden] {
+        display: none;
       }
       .hud-tally,
       .hud-friends {
@@ -318,6 +380,7 @@
         border-radius: 999px;
         background: #ffe9c9;
         border: 2px solid var(--ink);
+        box-shadow: 0 3px 0 rgba(74, 51, 39, 0.18);
         transition: transform 0.15s ease;
       }
       .hud-friends {
