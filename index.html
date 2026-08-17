@@ -57,6 +57,59 @@
         gap: 0.5rem;
         pointer-events: none;
       }
+      /* The wardrobe button lives in the top-left corner rather than in the
+         bar along the bottom: it is the one control a child reaches for while
+         not doing anything else, and down there it crowded the hint line and
+         sat under a thumb during play. */
+      .hud-corner {
+        position: fixed;
+        top: calc(0.7rem + env(safe-area-inset-top));
+        left: clamp(0.6rem, 3vw, 1.4rem);
+        pointer-events: auto;
+        z-index: 5;
+      }
+      /* Starting lights, across the top where they cannot be missed. */
+      .hud-lights {
+        position: fixed;
+        /* Below the wardrobe button: on a phone held upright the button is wide
+           enough to reach the middle of the screen, and the lights landing on
+           top of it hid both. */
+        top: calc(4.3rem + env(safe-area-inset-top));
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 0.55rem;
+        padding: 0.45rem 0.65rem;
+        background: rgba(46, 38, 33, 0.85);
+        border: 3px solid var(--ink);
+        border-radius: 999px;
+        box-shadow: 0 6px 0 rgba(74, 51, 39, 0.25);
+        pointer-events: none;
+        z-index: 6;
+      }
+      .hud-lights[hidden] {
+        display: none;
+      }
+      .hud-light {
+        width: clamp(1.5rem, 6vw, 2.1rem);
+        height: clamp(1.5rem, 6vw, 2.1rem);
+        border-radius: 50%;
+        border: 3px solid rgba(0, 0, 0, 0.3);
+        background: #2c2622;
+        transition: background 90ms linear, box-shadow 90ms linear;
+      }
+      .hud-light-red.lit {
+        background: #ff5548;
+        box-shadow: 0 0 14px 4px rgba(255, 85, 72, 0.7);
+      }
+      .hud-light-amber.lit {
+        background: #ffc23d;
+        box-shadow: 0 0 14px 4px rgba(255, 194, 61, 0.7);
+      }
+      .hud-light-green.lit {
+        background: #53e070;
+        box-shadow: 0 0 18px 6px rgba(83, 224, 112, 0.75);
+      }
       .hud-card {
         display: flex;
         align-items: center;

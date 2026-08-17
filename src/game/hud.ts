@@ -37,13 +37,18 @@ export class Hud {
     this.root = document.createElement('div');
     this.root.className = 'hud';
     this.root.innerHTML = `
+      <button type="button" class="hud-button hud-corner" aria-label="Ändra din enhörning">
+        <span aria-hidden="true">👗</span> Min enhörning
+      </button>
+      <div class="hud-lights" hidden aria-hidden="true">
+        <span class="hud-light hud-light-red"></span>
+        <span class="hud-light hud-light-amber"></span>
+        <span class="hud-light hud-light-green"></span>
+      </div>
       <div class="hud-card">
         <span class="hud-name"></span>
         <span class="hud-tally" hidden><span class="hud-tally-icon" aria-hidden="true">💩</span><span class="hud-tally-count">0</span></span>
         <span class="hud-friends" hidden><span aria-hidden="true">🦄</span><span class="hud-friends-count">0</span></span>
-        <button type="button" class="hud-button" aria-label="Ändra din enhörning">
-          <span aria-hidden="true">👗</span> Min enhörning
-        </button>
         <button type="button" class="hud-icon hud-spell" aria-label="Trolla">
           <span aria-hidden="true">✨</span>
         </button>
@@ -56,7 +61,7 @@ export class Hud {
     parent.appendChild(this.root);
 
     const nameLabel = this.root.querySelector<HTMLSpanElement>('.hud-name');
-    const button = this.root.querySelector<HTMLButtonElement>('.hud-button');
+    const button = this.root.querySelector<HTMLButtonElement>('.hud-corner');
     const music = this.root.querySelector<HTMLButtonElement>('.hud-music');
     const spell = this.root.querySelector<HTMLButtonElement>('.hud-spell');
     const tally = this.root.querySelector<HTMLSpanElement>('.hud-tally');
@@ -162,6 +167,32 @@ export class Hud {
     if (this.hint === null) {
       const el = this.root.querySelector<HTMLParagraphElement>('.hud-hint');
       if (el) el.textContent = text;
+    }
+  }
+
+  /**
+   * The starting lights: red, then amber, then green as the flag drops.
+   *
+   * On the HUD rather than out on the track, and not for want of a signpost
+   * sprite. A gantry at the side of a circuit is small, easy to be looking away
+   * from, and behind you the moment you set off; three big lamps across the top
+   * of the screen cannot be missed by a six-year-old who is concentrating on
+   * her steering.
+   *
+   * @param step -1 for none, then 0 red, 1 amber, 2 green.
+   */
+  setLights(step: number): void {
+    const box = this.root.querySelector<HTMLDivElement>('.hud-lights');
+    if (!box) return;
+    box.hidden = step < 0;
+    const lamps = this.root.querySelectorAll<HTMLSpanElement>('.hud-light');
+    lamps.forEach((lamp, i) => lamp.classList.toggle('lit', i <= step && step < 2));
+    // Green is on its own: the other two go out, so there is no ambiguity at
+    // the one moment that matters.
+    lamps[2]?.classList.toggle('lit', step === 2);
+    if (step === 2) {
+      lamps[0]?.classList.remove('lit');
+      lamps[1]?.classList.remove('lit');
     }
   }
 

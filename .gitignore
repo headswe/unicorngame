@@ -1,5 +1,7 @@
 node_modules/
 dist/
 .cache/
+# What the relay remembers about today's meadow. Written at run time.
+data/
 *.local
 .DS_Store

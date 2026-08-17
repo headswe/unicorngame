@@ -43,6 +43,7 @@ import {
 import { BounceYard } from './game/yard.ts';
 import { RaceTrack, TRACK_PORTAL, TRACK_VIEW_HEIGHT } from './game/racetrack.ts';
 import { CENTRE, LAPS, gridSlot, locate } from '../server/track.js';
+import { PHASES } from '../server/race.js';
 import { Herd, HERD_HZ, RESIDENTS, WORLD_BOUNDS as SIM_BOUNDS } from '../server/herd.js';
 import type { Place, RaceMessage } from './net/protocol.ts';
 import { Session } from './net/session.ts';
@@ -203,6 +204,8 @@ async function start(): Promise<void> {
    * from wherever they happened to finish the first.
    */
   let racePhase = '';
+  /** Which starting light is showing, so each one is sounded exactly once. */
+  let lightStep = -1;
 
   /**
    * Which side of the gate this child is on.
@@ -813,6 +816,9 @@ async function start(): Promise<void> {
     myMarker.group.removeFromParent();
     onGrid = -1;
     sfx.magicOpen();
+    // The engine runs for as long as the child is in the racing dimension —
+    // idling on the grid, revving on the track — and stops at the portal.
+    sfx.driving();
     hud.setRestingHint('Peka åt sidan för att svänga');
   };
 
@@ -822,6 +828,9 @@ async function start(): Promise<void> {
     inGateway = true;
     track.clear();
     onGrid = -1;
+    lightStep = -1;
+    hud.setLights(-1);
+    sfx.parked();
     player.x = PORTAL_SPOT.x;
     player.y = Math.max(WORLD_BOUNDS.minY, PORTAL_SPOT.y - PORTAL_LEAVE - 0.5);
     world.scene.add(player.group);
@@ -852,6 +861,20 @@ async function start(): Promise<void> {
 
     const fresh = race.phase === 'countdown' && racePhase !== 'countdown';
     racePhase = race.phase;
+
+    // Red, then amber, then green exactly as the flag drops. Green is not one
+    // of the three seconds of the countdown — it is the moment after them, so
+    // that "green" and "go" are the same instant and never a second apart.
+    let step = -1;
+    if (race.phase === 'countdown') step = left > 2 ? 0 : 1;
+    else if (race.phase === 'racing' && Date.now() / 1000 - (race.until - PHASES.racing) < 1.4) {
+      step = 2;
+    }
+    if (step !== lightStep) {
+      lightStep = step;
+      hud.setLights(step);
+      if (step >= 0) sfx.startLight(step);
+    }
     if (racing && (slot !== onGrid || fresh)) {
       onGrid = slot;
       track.lineUp(worn, gridSlot(slot));
@@ -1000,6 +1023,7 @@ async function start(): Promise<void> {
       if (steer === 0 && input.pointer.down) steer = input.pointer.x < 0 ? -1 : 1;
       const rolling = race?.phase === 'racing' && race.grid[session.id] !== undefined;
       track.update(dt, { steer: busy ? 0 : steer, rolling });
+      sfx.revs(track.pace, track.slip, rolling);
       raceHint();
 
       // Everyone else on the track, drawn as karts from their own poses.

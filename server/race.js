@@ -23,8 +23,9 @@ import { LAPS, distance, gridSlot, lapStep, locate } from './track.js';
 /** How long each phase lasts, in seconds. */
 export const PHASES = {
   /** Long enough to walk in, see what is happening and get on the grid. */
-  waiting: 15,
-  countdown: 5,
+  waiting: 10,
+  /** One second a light: red, amber, green. Any longer and they fidget. */
+  countdown: 3,
   /** A hard stop, so one child parked on the grass cannot hold up the next race. */
   racing: 210,
   results: 12,

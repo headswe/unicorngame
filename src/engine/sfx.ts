@@ -55,6 +55,26 @@ export class Sfx {
   private noiseBuf: AudioBuffer | null = null;
 
   /**
+   * The kart, which is the only sound in the game that is held rather than
+   * struck.
+   *
+   * Everything else here is a one-shot: something happens, a note is fired and
+   * forgotten. An engine cannot work that way — it has to be running, and its
+   * pitch has to follow the throttle from one frame to the next — so this is a
+   * small set of voices kept alive between `driving` and `parked`, with their
+   * gain and frequency steered rather than triggered.
+   */
+  private engine: {
+    growl: OscillatorNode;
+    growlGain: GainNode;
+    whine: OscillatorNode;
+    whineGain: GainNode;
+    slip: AudioBufferSourceNode;
+    slipGain: GainNode;
+    slipFilter: BiquadFilterNode;
+  } | null = null;
+
+  /**
    * @param isEnabled Sound follows the same on/off switch as the music.
    * @param context   Supply one to render offline; otherwise a live one is made.
    */
@@ -251,6 +271,122 @@ export class Sfx {
       type: 'sine',
       slideTo: pitch * 3.4,
       delay: 0.04,
+    });
+  }
+
+  // --- the kart -------------------------------------------------------------
+
+  /**
+   * Starts the kart's engine, and the tyres under it.
+   *
+   * Two voices make the engine: a sawtooth growl an octave down that carries
+   * the weight, and a thin sine above it that does most of the work of sounding
+   * fast. The tyres are filtered noise, silent until the kart is actually
+   * sliding — a squeal that plays all the time is just hiss.
+   */
+  driving(): void {
+    const ctx = this.ensure();
+    if (!ctx || this.engine) return;
+
+    const voice = (type: OscillatorType, hz: number): [OscillatorNode, GainNode] => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.value = hz;
+      gain.gain.value = 0;
+      osc.connect(gain);
+      this.route(gain, 0);
+      osc.start();
+      return [osc, gain];
+    };
+
+    const [growl, growlGain] = voice('sawtooth', 70);
+    const [whine, whineGain] = voice('sine', 210);
+
+    // The tyres: one loop of noise, band-passed, opened up when sliding.
+    const slip = ctx.createBufferSource();
+    slip.buffer = this.noiseBuffer(ctx);
+    slip.loop = true;
+    const slipFilter = ctx.createBiquadFilter();
+    slipFilter.type = 'bandpass';
+    slipFilter.frequency.value = 2200;
+    slipFilter.Q.value = 1.4;
+    const slipGain = ctx.createGain();
+    slipGain.gain.value = 0;
+    slip.connect(slipFilter).connect(slipGain);
+    this.route(slipGain, 0.12);
+    slip.start();
+
+    this.engine = { growl, growlGain, whine, whineGain, slip, slipGain, slipFilter };
+  }
+
+  /**
+   * Steers the engine and the tyres.
+   *
+   * @param pace 0..1 of flat out.
+   * @param slip 0..1 of how far sideways the kart is going.
+   * @param rolling false before the flag, when it should idle rather than rev.
+   */
+  revs(pace: number, slip: number, rolling: boolean): void {
+    const engine = this.engine;
+    const ctx = this.ctx;
+    if (!engine || !ctx) return;
+
+    // Ramped rather than set, so a frame-rate hiccup does not click.
+    const at = ctx.currentTime;
+    const ease = (param: AudioParam, value: number): void => {
+      param.cancelScheduledValues(at);
+      param.linearRampToValueAtTime(value, at + 0.08);
+    };
+
+    const idling = rolling ? 0 : 1;
+    // An idle sits low and steady; under way the pitch climbs with the speed.
+    ease(engine.growl.frequency, 58 + pace * 132 - idling * 12);
+    ease(engine.whine.frequency, 165 + pace * 520 - idling * 40);
+    ease(engine.growlGain.gain, 0.055 + pace * 0.05);
+    ease(engine.whineGain.gain, 0.006 + pace * 0.03);
+
+    // The squeal only exists while the kart is genuinely sideways, and it rises
+    // as it lets go — which is the cue a child steers by without knowing it.
+    // Held well under the loudest one-shot in the game: this is a sound that
+    // can go on for whole corners at a time, and anything that sits near the
+    // top of the mix for that long stops being a cue and becomes a nuisance.
+    ease(engine.slipGain.gain, Math.max(0, slip - 0.12) * 0.2);
+    ease(engine.slipFilter.frequency, 1500 + slip * 2600);
+  }
+
+  /** Stops the engine, on leaving the racing dimension. */
+  parked(): void {
+    const engine = this.engine;
+    if (!engine) return;
+    this.engine = null;
+    const ctx = this.ctx;
+    const at = ctx ? ctx.currentTime : 0;
+    for (const gain of [engine.growlGain, engine.slipGain, engine.whineGain]) {
+      gain.gain.cancelScheduledValues(at);
+      gain.gain.linearRampToValueAtTime(0, at + 0.15);
+    }
+    // Given time to fade before they are torn down, or it ends in a click.
+    for (const node of [engine.growl, engine.whine, engine.slip]) node.stop(at + 0.25);
+  }
+
+  /**
+   * One of the three starting lights coming on.
+   *
+   * @param step 0 red, 1 amber, 2 green.
+   */
+  startLight(step: number): void {
+    if (step >= 2) {
+      // Green. Two notes a fifth apart and a little reverb: unmistakably go.
+      this.tone(660, { duration: 0.16, gain: 0.16, type: 'triangle', send: 0.2 });
+      this.tone(990, { duration: 0.5, gain: 0.13, type: 'triangle', delay: 0.09, send: 0.25 });
+      return;
+    }
+    // Red, then amber: the same short blip, a tone higher each time.
+    this.tone(step === 0 ? 300 : 400, {
+      duration: 0.16,
+      gain: 0.13,
+      type: 'triangle',
     });
   }
 

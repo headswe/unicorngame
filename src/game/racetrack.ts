@@ -130,6 +130,24 @@ export class RaceTrack {
     return Math.min(1, Math.abs(this.speed) / TOP_SPEED.road);
   }
 
+  /**
+   * How far sideways the kart is going, 0..1, for the tyres.
+   *
+   * The angle between where it points and where it is actually travelling.
+   * Nothing else in the game knows the kart is sliding — the slide is only ever
+   * the gap between those two — so this is where the squeal has to come from.
+   */
+  get slip(): number {
+    const kart = this.mine;
+    const speed = Math.hypot(this.driftX, this.driftY);
+    if (!kart || speed < 3) return 0;
+    const going = Math.atan2(this.driftY, this.driftX);
+    let off = Math.abs(((going - kart.heading + Math.PI) % (Math.PI * 2)) - Math.PI);
+    if (off > Math.PI / 2) off = Math.PI - off;
+    // A quarter turn out is as sideways as anything ever gets in practice.
+    return Math.min(1, off / (Math.PI / 4));
+  }
+
   private build(): void {
     // Grass, then the road painted on top of it as one canvas the size of the
     // world. One texture and one quad for the whole circuit.
