@@ -166,6 +166,9 @@ class Preview {
   private readonly camera: THREE.OrthographicCamera;
   private unicorn: Unicorn | null = null;
   private clock = 0;
+  /** The size last written to the canvas, so a resize is only ever done once. */
+  private width = 0;
+  private height = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
@@ -179,10 +182,33 @@ class Preview {
     this.resize(height);
   }
 
+  /**
+   * Sizes the stage.
+   *
+   * The size is worked out here and then written to the canvas as both a CSS
+   * size and a drawing buffer, rather than the buffer being measured off the
+   * rendered element. Measuring it is a feedback loop: nothing else was giving
+   * the canvas a width, so its rendered size followed its buffer, and since
+   * the buffer is the rendered size times the device pixel ratio, a phone at
+   * two-times doubled the canvas on every single frame. It reached thirty
+   * thousand pixels across inside a second, and everything else in the
+   * wardrobe was pushed off the side of the screen.
+   *
+   * Called every frame, so it does nothing at all unless the answer changed.
+   */
   private resize(viewHeight = 2.6): void {
     const canvas = this.renderer.domElement;
-    const width = canvas.clientWidth || 260;
-    const height = canvas.clientHeight || 300;
+    // Roughly a quarter of the narrow side, held between a size worth looking
+    // at and one that would crowd out the buttons beside it.
+    const across = Math.min(window.innerWidth, window.innerHeight * 1.3);
+    const width = Math.round(Math.max(144, Math.min(240, across * 0.26)));
+    const height = Math.round(width * 1.13);
+    if (width === this.width && height === this.height) return;
+    this.width = width;
+    this.height = height;
+
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(width, height, false);
 

@@ -334,9 +334,11 @@
         align-items: center;
         flex: 0 0 auto;
       }
+      /* The size is set in JS, deliberately — see Preview.resize in
+         wardrobe.ts. A canvas whose CSS size and whose drawing buffer can
+         disagree will grow without bound if the buffer is ever derived from
+         the rendered size, so exactly one of the two is in charge. */
       .wardrobe-canvas {
-        width: clamp(9rem, 26vw, 15rem);
-        height: clamp(10rem, 30vw, 17rem);
         background: radial-gradient(circle at 50% 62%, #dff0e4, #bfe3f2);
         border: 3px solid var(--ink);
         border-radius: 1.1rem;
@@ -478,10 +480,6 @@
           flex-direction: column;
           gap: 0.6rem;
           overflow-y: auto;
-        }
-        .wardrobe-canvas {
-          width: 60vw;
-          height: 34vh;
         }
       }
       .spelling {

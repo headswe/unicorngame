@@ -19,27 +19,42 @@ import { createSprite, type Sprite } from '../engine/sprite.ts';
 import { RAINBOW } from './palette.ts';
 import type { UnicornVariant } from './variant.ts';
 
-/** The karts a child can pick between. */
+/**
+ * The karts a child can pick between, and how each one is drawn.
+ *
+ * `length` is nose to tail in world units, and the three are not the same
+ * because the drawings are not. Every sprite comes back from the generator
+ * trimmed and scaled to one height, so drawing them all the same length made
+ * the long narrow speeder cover well under half the screen the squat buggy
+ * did — which reads as one kart simply being smaller than the others rather
+ * than a different shape. These lengths give all three the same amount of
+ * paint; `node scripts/kart-sizes.mjs` measures them.
+ *
+ * `seat` is where the driver goes, as a fraction of the kart's length up from
+ * its middle, because the seat is drawn in a different place in each one.
+ */
 export const KARTS = [
-  { id: 'kart_stjarna', name: 'Stjärna' },
-  { id: 'kart_hjarta', name: 'Hjärta' },
-  { id: 'kart_blixt', name: 'Blixt' },
+  { id: 'kart_stjarna', name: 'Stjärna', length: 2.6, seat: 0.0 },
+  { id: 'kart_hjarta', name: 'Hjärta', length: 2.31, seat: -0.02 },
+  { id: 'kart_blixt', name: 'Blixt', length: 3.04, seat: -0.13 },
 ] as const;
 
-/** How big a kart is, nose to tail, in world units. */
-const KART_LENGTH = 2.6;
-
-/** Where the driver sits along the kart, as a fraction of its length. */
-const SEAT = -0.06;
+/**
+ * How big the driver is drawn, whichever kart they are in.
+ *
+ * Fixed rather than a fraction of the kart: it is the same unicorn in all
+ * three, and a child who picked the long one should not find themselves
+ * bigger for it.
+ */
+const DRIVER_HEIGHT = 1.15;
 
 /** Draw order inside one kart, and how far apart two karts are kept. */
 const KART_ORDER = 300000;
 const KART_GAP = 20;
 
-/** The kart id for a variant, tolerant of a save from before karts existed. */
-export function kartIdFor(variant: UnicornVariant): string {
-  const chosen = KARTS[variant.kart ?? 0] ?? KARTS[0];
-  return chosen.id;
+/** Which kart a variant drives, tolerant of a save from before karts existed. */
+export function kartFor(variant: UnicornVariant): (typeof KARTS)[number] {
+  return KARTS[variant.kart ?? 0] ?? KARTS[0]!;
 }
 
 export class Kart {
@@ -72,12 +87,13 @@ export class Kart {
       this.sprites.push(sprite);
     };
 
-    paint(kartIdFor(variant), variant.maneColour, KART_LENGTH, 0);
-    // The driver sits a little back from the middle, in the seat.
+    const chosen = kartFor(variant);
+    paint(chosen.id, variant.maneColour, chosen.length, 0);
+
     const before = this.sprites.length;
-    paint('forare', variant.coat, KART_LENGTH * 0.44, 1);
+    paint('forare', variant.coat, DRIVER_HEIGHT, 1);
     const driver = this.sprites[before];
-    if (driver) driver.position.y = KART_LENGTH * SEAT;
+    if (driver) driver.position.y = chosen.length * chosen.seat;
   }
 
   /** Puts the kart where it is and turns it to face where it is going. */
