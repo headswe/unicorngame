@@ -451,6 +451,61 @@
     "tintable": false
   },
   {
+    "id": "portal",
+    "kind": "prop",
+    "label": "Portal",
+    "url": "assets/parts/portal.png",
+    "width": 396,
+    "height": 512,
+    "aspect": 0.7734375,
+    "worldHeight": 2.9,
+    "tintable": false
+  },
+  {
+    "id": "kart_stjarna",
+    "kind": "prop",
+    "label": "Stjärnbil",
+    "url": "assets/parts/kart_stjarna.png",
+    "width": 370,
+    "height": 512,
+    "aspect": 0.72265625,
+    "worldHeight": 1.25,
+    "tintable": true
+  },
+  {
+    "id": "kart_hjarta",
+    "kind": "prop",
+    "label": "Hjärtbil",
+    "url": "assets/parts/kart_hjarta.png",
+    "width": 425,
+    "height": 512,
+    "aspect": 0.830078125,
+    "worldHeight": 1.25,
+    "tintable": true
+  },
+  {
+    "id": "kart_blixt",
+    "kind": "prop",
+    "label": "Blixtbil",
+    "url": "assets/parts/kart_blixt.png",
+    "width": 311,
+    "height": 512,
+    "aspect": 0.607421875,
+    "worldHeight": 1.25,
+    "tintable": true
+  },
+  {
+    "id": "forare",
+    "kind": "prop",
+    "label": "Förare",
+    "url": "assets/parts/forare.png",
+    "width": 388,
+    "height": 512,
+    "aspect": 0.7578125,
+    "worldHeight": 0.62,
+    "tintable": true
+  },
+  {
     "id": "stafflig",
     "kind": "prop",
     "label": "Ritbräda",

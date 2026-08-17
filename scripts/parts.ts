@@ -149,6 +149,27 @@ const prop = (
   prompt: `${STYLE}. ${description} ${ISOLATED}`,
 });
 
+/**
+ * A go-kart seen from straight above, nose pointing up the image.
+ *
+ * Drawn near-white like the unicorn parts, because the bodywork is painted in
+ * its driver's colours at runtime.
+ */
+const kart = (id: string, label: string, description: string): PartSpec => ({
+  id,
+  kind: 'prop',
+  label,
+  worldHeight: 1.25,
+  prompt:
+    `${STYLE}. A tiny toy go-kart seen from DIRECTLY ABOVE, from a bird's eye ` +
+    `view looking straight down on it, with its nose pointing straight up the ` +
+    `image and its tail at the bottom. Four wheels stick out at the corners, ` +
+    `seen from above as rounded dark blocks, and there is an empty seat in the ` +
+    `middle with nobody in it. ${description} It is drawn flat-on from above ` +
+    `with no perspective and no side of the kart visible. ${TINTABLE} ` +
+    `${ISOLATED}`,
+});
+
 export const PARTS: PartSpec[] = [
   // --- bodies ---------------------------------------------------------------
   body(
@@ -398,6 +419,65 @@ export const PARTS: PartSpec[] = [
       'little outdoor school desk in a meadow.',
     1.4,
   ),
+
+  /**
+   * The way through to the racing dimension, and what you race in.
+   *
+   * The karts and their driver are the only things in the game drawn from
+   * directly above, because the track is the only place seen that way. They all
+   * point straight up the image so that one rotation puts them wherever the
+   * steering says — a kart drawn at an angle would need that angle subtracted
+   * out of every frame forever.
+   *
+   * Both are tintable, and take two different colours: the bodywork gets the
+   * driver's mane colour, which is usually the brighter of the two and makes
+   * the kart easy to pick out at speed, and the little unicorn in it gets their
+   * coat. So a child's kart is recognisably theirs without them choosing
+   * anything.
+   */
+  prop(
+    'portal',
+    'Portal',
+    'A tall free-standing magic portal: a ring of pale twisted stone standing ' +
+      'upright on the grass, seen from the front and slightly above, with a ' +
+      'swirling spiral of pink, violet and turquoise light filling the ' +
+      'opening. Small four-pointed sparkle stars drift around the ring. It ' +
+      'looks like a doorway to somewhere else.',
+    2.9,
+  ),
+  kart(
+    'kart_stjarna',
+    'Stjärnbil',
+    'The body is a rounded bubble-shaped little racer with a big star on the ' +
+      'bonnet and two chunky exhaust pipes at the back.',
+  ),
+  kart(
+    'kart_hjarta',
+    'Hjärtbil',
+    'The body is a squat cheerful buggy with a heart on the bonnet, a small ' +
+      'roll bar behind the seat and wide fat tyres.',
+  ),
+  kart(
+    'kart_blixt',
+    'Blixtbil',
+    'The body is a long pointed arrow-shaped speeder with a lightning bolt ' +
+      'along the bonnet and a low spoiler across the tail.',
+  ),
+  {
+    id: 'forare',
+    kind: 'prop',
+    label: 'Förare',
+    worldHeight: 0.62,
+    prompt:
+      `${STYLE}. A cute unicorn seen from DIRECTLY ABOVE, from a bird's eye ` +
+      `view looking straight down at the top of its head, as if sitting in a ` +
+      `go-kart seat. Only the head, mane and shoulders are visible from this ` +
+      `angle: the top of the muzzle points straight up the image, two small ` +
+      `ears stick out either side, a horn lies pointing up the image over the ` +
+      `muzzle, and the mane spreads out behind the head towards the bottom of ` +
+      `the image. No legs, no body, no kart, no seat — only the unicorn seen ` +
+      `from above. ${TINTABLE} ${ISOLATED}`,
+  },
 
   /**
    * The easel out in the meadow that everybody draws on together.

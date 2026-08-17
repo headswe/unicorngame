@@ -82,6 +82,12 @@ export class Visitors {
     return [...this.here.values()].map((v) => v.unicorn.variant.name);
   }
 
+  /** What a particular friend's unicorn is called, or nothing if unknown. */
+  nameOf(id: string | undefined): string | null {
+    if (!id) return null;
+    return this.here.get(id)?.unicorn.variant.name ?? null;
+  }
+
   /** How many friends are in a given place, so the HUD can say so. */
   countIn(place: Place): number {
     let n = 0;
@@ -92,6 +98,22 @@ export class Visitors {
   /** Switches which place is being drawn. Called when a child goes through. */
   watch(place: Place): void {
     this.viewing = place;
+  }
+
+  /**
+   * Everyone in a given place, with the last pose they sent.
+   *
+   * The racing dimension draws its own people — a unicorn in profile seen from
+   * directly above would be lying on its side — so it asks for them rather than
+   * having them drawn for it.
+   */
+  inPlace(place: Place): Array<{ id: string; variant: UnicornVariant; pose: Pose }> {
+    const out: Array<{ id: string; variant: UnicornVariant; pose: Pose }> = [];
+    for (const [id, visitor] of this.here) {
+      if (placeOf(visitor.target) !== place) continue;
+      out.push({ id, variant: visitor.unicorn.variant, pose: visitor.target });
+    }
+    return out;
   }
 
   /**

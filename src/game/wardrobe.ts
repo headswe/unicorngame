@@ -16,6 +16,7 @@ import * as THREE from 'three';
 
 import type { AssetLibrary, Part, PartKind } from '../engine/assets.ts';
 import { COATS, HAIR, HORNS, NAMES, PATTERN_COLOURS, RAINBOW, type NamedColour } from './palette.ts';
+import { KARTS } from './kart.ts';
 import { Unicorn } from './unicorn.ts';
 import { randomSeed, randomVariant, type UnicornVariant } from './variant.ts';
 
@@ -41,7 +42,16 @@ interface Tab {
   setColour(v: UnicornVariant, hex: number): void;
   /** Patterns can be switched off entirely. */
   allowNone?: boolean;
+  /**
+   * An explicit list of sprites, instead of every sprite of a kind.
+   *
+   * The karts are props, and so are the shovel and the trampoline; offering
+   * "every prop in the game" as bodywork would be a strange wardrobe.
+   */
+  only?: readonly string[];
 }
+
+const KART_IDS: readonly string[] = KARTS.map((k) => k.id);
 
 const TABS: Tab[] = [
   {
@@ -118,6 +128,25 @@ const TABS: Tab[] = [
     getColour: (v) => v.patternColour,
     setColour: (v, hex) => {
       v.patternColour = hex;
+    },
+  },
+  {
+    id: 'kart',
+    label: 'Kart',
+    icon: '🏎️',
+    kind: 'prop',
+    only: KART_IDS,
+    // The bodywork is painted in the mane colour, so this is the same choice
+    // seen from the other side: pick a colour here and the mane changes too.
+    colours: HAIR,
+    getPart: (v) => KART_IDS[v.kart ?? 0] ?? KART_IDS[0]!,
+    setPart: (v, id) => {
+      const at = KART_IDS.indexOf(id ?? '');
+      v.kart = at < 0 ? 0 : at;
+    },
+    getColour: (v) => v.maneColour,
+    setColour: (v, hex) => {
+      v.maneColour = hex;
     },
   },
 ];
@@ -271,7 +300,9 @@ export class Wardrobe {
   private buildTabs(): void {
     for (const tab of TABS) {
       // A tab with no sprites to offer would be an empty shelf.
-      if (tab.kind && !this.assets.ofKind(tab.kind).length) continue;
+      if (tab.only) {
+        if (!tab.only.some((id) => this.assets.has(id))) continue;
+      } else if (tab.kind && !this.assets.ofKind(tab.kind).length) continue;
 
       const button = document.createElement('button');
       button.type = 'button';
@@ -331,7 +362,11 @@ export class Wardrobe {
           ),
         );
       }
-      for (const part of this.assets.ofKind(this.tab.kind)) {
+      const offered = this.tab.only
+        ? this.tab.only.map((id) => (this.assets.has(id) ? this.assets.get(id) : null))
+        : this.assets.ofKind(this.tab.kind);
+      for (const part of offered) {
+        if (!part) continue;
         this.options.appendChild(
           this.partCard(part, this.tab.getPart(this.variant) === part.id, () =>
             this.tab.setPart(this.variant, part.id),

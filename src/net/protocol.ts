@@ -20,17 +20,19 @@ import type { UnicornVariant } from '../game/variant.ts';
  * versions — one with a stale tab open — are dropped rather than left watching
  * each other glitch.
  */
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 /**
- * The two places a child can be.
+ * The three places a child can be.
  *
- * `angen` is the meadow, where y is depth into the field. `studs` is the
- * bouncing yard through the gate, where y is height off the ground. The same
- * two numbers mean different things in each, which is exactly why a pose has
- * to say which one it is talking about.
+ * `angen` is the meadow, where y is depth into the field and squashed on
+ * screen. `studs` is the bouncing yard through the gate, where y is height off
+ * the ground. `bana` is the racing dimension through the portal, seen from
+ * straight above, where y is north and nothing is squashed at all. The same two
+ * numbers mean something different in each, which is exactly why a pose has to
+ * say which one it is talking about.
  */
-export type Place = 'angen' | 'studs';
+export type Place = 'angen' | 'studs' | 'bana';
 
 /** How many times a second each player's position goes out. */
 export const POSE_HZ = 10;
@@ -50,8 +52,8 @@ export interface Pose {
   /** Which place this pose is in. Absent means the meadow. */
   p?: Place;
   /**
-   * How far the pony is rotated, in radians. Only ever sent from the yard,
-   * where a bouncing child can turn somersaults; absent means upright.
+   * How far the pony is turned, in radians. A somersault in the yard, and which
+   * way a kart is pointing on the track. Absent means upright, or due east.
    */
   r?: number;
 }
@@ -166,6 +168,36 @@ export interface RubMessage {
   strokes: string[];
 }
 
+/**
+ * What the racing dimension is doing, decided by the relay and sent to anyone
+ * watching or driving.
+ *
+ * Races run on a loop whether or not anybody is there, so there is always
+ * something to walk in on: a wait on the grid, a countdown, the race, the
+ * results, and round again. `until` is when the current phase ends, in unix
+ * seconds, so every screen counts down to the same instant rather than each
+ * running its own clock.
+ *
+ * Driving is not in here. A kart is far too immediate to be worth anybody
+ * else's connection having a say in, so each child drives their own and this
+ * settles only what has to be agreed: when to go, who has done how many laps,
+ * and who won.
+ */
+export interface RaceMessage {
+  t: 'race';
+  phase: 'waiting' | 'countdown' | 'racing' | 'results';
+  /** Unix seconds this phase ends. */
+  until: number;
+  /** Laps completed, by peer id — only for those actually in this race. */
+  laps: Record<string, number>;
+  /** Everyone in the race, best first. Spectators are not in it. */
+  order: string[];
+  /** Who has crossed the line, in the order they did, and how long they took. */
+  finished: Array<{ id: string; seconds: number }>;
+  /** Which grid slot each racer starts from, settled when the countdown begins. */
+  grid: Record<string, number>;
+}
+
 /** Somebody shovelled one. Named, so both screens remove the same poop. */
 export interface CleanMessage {
   t: 'clean';
@@ -263,6 +295,7 @@ export interface ByeMessage {
 
 export type NetMessage =
   | HelloMessage
+  | RaceMessage
   | InkMessage
   | RubMessage
   | PoseMessage

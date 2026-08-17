@@ -25,6 +25,7 @@ import {
   PROTOCOL_VERSION,
   type NetMessage,
   type Pose,
+  type RaceMessage,
   type StateMessage,
 } from './protocol.ts';
 import type { NetStatus, Transport } from './transport.ts';
@@ -40,6 +41,13 @@ const IDLE_HZ = 2;
  * a stutter.
  */
 const YARD_HZ = 20;
+
+/**
+ * And from the racing dimension, where a kart covers two units between one
+ * meadow-rate pose and the next. This is also what the referee counts laps
+ * from, so it is the resolution of the whole race.
+ */
+const TRACK_HZ = 20;
 
 export interface SessionCallbacks {
   /** Someone else cast a spell; replay it locally so both screens agree. */
@@ -69,6 +77,8 @@ export interface SessionCallbacks {
   onInk(stroke: string, by: string, colour: number, nib: number, xy: number[]): void;
   /** Lines somebody rubbed out, whoever had drawn them. */
   onRub(strokes: string[]): void;
+  /** What the racing dimension is doing, as the relay sees it. */
+  onRace(race: RaceMessage): void;
   /** Ponies that are pleased about something. */
   onCheer(ponies: number[]): void;
   onStatus(status: NetStatus): void;
@@ -228,6 +238,10 @@ export class Session {
       this.callbacks.onCheer(message.ponies);
       return;
     }
+    if (message.t === 'race') {
+      this.callbacks.onRace(message);
+      return;
+    }
     // A relay broadcasts to everyone, so our own messages can come back.
     if (!('id' in message) || message.id === this.id) return;
 
@@ -298,7 +312,8 @@ export class Session {
     // pony resting between bounces has `m` false but is emphatically not idle,
     // which is why the yard is asked about first.
     const moving = pose.m || this.lastSent === null || this.lastSent.m;
-    const rate = pose.p === 'studs' ? YARD_HZ : moving ? POSE_HZ : IDLE_HZ;
+    const rate =
+      pose.p === 'studs' ? YARD_HZ : pose.p === 'bana' ? TRACK_HZ : moving ? POSE_HZ : IDLE_HZ;
     if (this.since < 1 / rate) return;
 
     this.since = 0;

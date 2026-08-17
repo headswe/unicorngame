@@ -24,6 +24,7 @@ import { WebSocketServer } from 'ws';
 
 import { Herd, HERD_HZ, RESIDENTS, WORLD_BOUNDS, hashSeed, scatterTreats } from './herd.js';
 import { Meadow, meadowSeed } from './meadow.js';
+import { Race } from './race.js';
 
 /** App Service tells the app which port to listen on. */
 const PORT = Number(process.env.PORT ?? 8080);
@@ -77,6 +78,18 @@ let treats = [];
  */
 const players = new Map();
 
+/**
+ * Where each kart in the racing dimension is, and when it last said so.
+ *
+ * Kept apart from `players` because the two mean different things: a child on
+ * the track is not in the meadow at all, and their x and y are somewhere else
+ * entirely. Feeding one to the other would send the herd trotting off to a
+ * patch of grass nobody is standing in.
+ */
+const racing = new Map();
+const race = new Race();
+let raceDue = 0;
+
 /** Puts the foals the children have hatched back into the herd. */
 function stockFoals() {
   for (const born of meadow.snapshot().foals) {
@@ -116,6 +129,17 @@ const ticker = setInterval(() => {
   // Berries nobody got to are cleared once they have been lying a while, so a
   // forgotten shower does not keep the herd walking in circles forever.
   treats = treats.filter((tr) => !tr.eaten && now - tr.bornAt < 90);
+
+    // The racing dimension. Its loop runs whether or not anybody is on the
+  // track, so a child coming through the portal always walks in on something.
+  for (const [id, kart] of racing) if (now - kart.seen > 6) racing.delete(id);
+  const onTrack = [...racing.keys()];
+  const changed = race.tick(now, onTrack, racing);
+  raceDue -= 1 / HERD_HZ;
+  if (changed || raceDue <= 0) {
+    raceDue = 0.5;
+    if (lobby.size > 0) broadcast(race.snapshot());
+  }
 
   const { poops, eaten, cheers } = herd.tick(dt, now, treats, [...players.values()]);
 
@@ -224,8 +248,16 @@ function absorb(message, socket) {
     // standing in, so they simply stop being somebody to follow.
     if (message.pose.p && message.pose.p !== 'angen') players.delete(message.id);
     else players.set(message.id, { id: message.id, x: message.pose.x, y: message.pose.y });
+    // The racing dimension needs its own list, because the referee counts laps
+    // from where the karts are and a kart is nowhere near the meadow.
+    if (message.pose.p === 'bana') {
+      racing.set(message.id, { x: message.pose.x, y: message.pose.y, seen: Date.now() / 1000 });
+    } else {
+      racing.delete(message.id);
+    }
   } else if (message?.t === 'bye') {
     players.delete(message.id);
+    racing.delete(message.id);
   } else if (message?.t === 'pet') {
     // A child reached out to one. The herd decides whether they were actually
     // close enough, so a hopeful tap from across the meadow does nothing.

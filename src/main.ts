@@ -31,10 +31,20 @@ import { Marker, MINE } from './game/marker.ts';
 import { Visitors } from './game/visitors.ts';
 import { Board } from './game/board.ts';
 import { BoardUi } from './game/board-ui.ts';
-import { World, WORLD_BOUNDS, EASEL_SPOT, GATE_SPOT, SHOVEL_SPOT, TABLE_SPOT } from './game/world.ts';
+import {
+  World,
+  WORLD_BOUNDS,
+  EASEL_SPOT,
+  GATE_SPOT,
+  PORTAL_SPOT,
+  SHOVEL_SPOT,
+  TABLE_SPOT,
+} from './game/world.ts';
 import { BounceYard } from './game/yard.ts';
+import { RaceTrack, TRACK_PORTAL, TRACK_VIEW_HEIGHT } from './game/racetrack.ts';
+import { CENTRE, LAPS, gridSlot, locate } from '../server/track.js';
 import { Herd, HERD_HZ, RESIDENTS, WORLD_BOUNDS as SIM_BOUNDS } from '../server/herd.js';
-import type { Place } from './net/protocol.ts';
+import type { Place, RaceMessage } from './net/protocol.ts';
 import { Session } from './net/session.ts';
 import { LoopbackTransport, SocketTransport, type Transport } from './net/transport.ts';
 
@@ -65,6 +75,10 @@ const TABLE_NOTICE = 9;
 /** How close to the easel you have to stand to start drawing, and to leave. */
 const EASEL_REACH = 2.4;
 const EASEL_LEAVE = 4;
+
+/** How close to the portal you have to stand to be taken to the track. */
+const PORTAL_REACH = 2.4;
+const PORTAL_LEAVE = 4.5;
 
 /** How close to the gate you have to stand to go through to the yard. */
 const GATE_REACH = 2.2;
@@ -158,7 +172,11 @@ async function start(): Promise<void> {
     controller.onStep = () => sfx.step();
     // Changing clothes over the fence puts the new pony back in the yard, not
     // in the meadow it cannot currently see.
-    if (place === 'studs') {
+    if (place === 'bana') {
+      // Changing clothes on the track repaints the kart, since it is painted in
+      // this unicorn's colours; the meadow pony stays out of the scene.
+      onGrid = -1;
+    } else if (place === 'studs') {
       const wasX = replacement.x;
       yard.enter(replacement);
       replacement.x = wasX;
@@ -171,6 +189,20 @@ async function start(): Promise<void> {
 
   const yard = new BounceYard(assets);
   const yardCamera = new MeadowCamera(YARD_VIEW_HEIGHT);
+  const track = new RaceTrack(assets);
+  const trackCamera = new MeadowCamera(TRACK_VIEW_HEIGHT);
+  /** The last word from the referee, or nothing if we have never heard from it. */
+  let race: RaceMessage | null = null;
+  /** Which grid slot we were last put on, so we only line up when it changes. */
+  let onGrid = -1;
+  /**
+   * The phase we last acted on.
+   *
+   * A child who keeps the same grid slot from one race to the next would
+   * otherwise never be put back on the line, and would start the second race
+   * from wherever they happened to finish the first.
+   */
+  let racePhase = '';
 
   /**
    * Which side of the gate this child is on.
@@ -422,10 +454,22 @@ async function start(): Promise<void> {
       // In the yard y means height rather than depth and the pony can be upside
       // down, so a pose has to say which place it belongs to — the same two
       // numbers mean different things on the two sides of the gate.
-      pose: () =>
-        place === 'studs'
-          ? { x: player.x, y: player.y, f: player.facing, m: yard.running, p: place, r: player.spin }
-          : { x: player.x, y: player.y, f: player.facing, m: controller.moving },
+      pose: () => {
+        if (place === 'bana') {
+          // A kart's x and y are its own, and `r` is which way it points; the
+          // referee works out the laps from that and nothing else is needed.
+          const kart = track.kart;
+          const x = kart?.x ?? 0;
+          const y = kart?.y ?? 0;
+          return { x, y, f: 1, m: false, p: place, r: kart?.heading ?? 0 };
+        }
+        if (place === 'studs') {
+          return {
+            x: player.x, y: player.y, f: player.facing, m: yard.running, p: place, r: player.spin,
+          };
+        }
+        return { x: player.x, y: player.y, f: player.facing, m: controller.moving };
+      },
       variant: () => worn,
       cleaned: () => world.poop.shovelled,
     },
@@ -443,6 +487,11 @@ async function start(): Promise<void> {
       // A friend's record of the tidying, adopted so today's presents are not
       // all put back the moment a latecomer works out that they happened.
       onCleanedList: (poops) => world.poop.forget(poops),
+      onRace: (update) => {
+        // A new race and this child is in it: a fanfare on the line, once.
+        if (race?.phase !== update.phase && update.phase === 'countdown') sfx.magicOpen();
+        race = update;
+      },
       onInk: (stroke, by, colour, nib, xy) => board.ink(stroke, by, colour, nib, xy),
       onRub: (strokes) => board.remove(strokes),
       // The meadow as the relay remembers it: the tidying already done, the
@@ -751,8 +800,101 @@ async function start(): Promise<void> {
     hud.announce(`${what} Du har slagit ${total} idag.`, 3);
   };
 
+  const enterTrack = (): void => {
+    if (place === 'bana' || !track.available) return;
+    place = 'bana';
+    inGateway = true;
+    controller.stop();
+    setLandmarkHint(null);
+    // The pony steps out of the meadow and into a kart; nothing of the meadow
+    // comes with it, because from up here a pony in profile is lying down.
+    player.group.removeFromParent();
+    visitors.watch('bana');
+    myMarker.group.removeFromParent();
+    onGrid = -1;
+    sfx.magicOpen();
+    hud.setRestingHint('Peka åt sidan för att svänga');
+  };
+
+  const leaveTrack = (): void => {
+    if (place !== 'bana') return;
+    place = 'angen';
+    inGateway = true;
+    track.clear();
+    onGrid = -1;
+    player.x = PORTAL_SPOT.x;
+    player.y = Math.max(WORLD_BOUNDS.minY, PORTAL_SPOT.y - PORTAL_LEAVE - 0.5);
+    world.scene.add(player.group);
+    world.scene.add(visitors.group);
+    visitors.watch('angen');
+    world.scene.add(myMarker.group);
+    hud.setRestingHint('Gå med pilarna · eller peka där du vill gå');
+    sfx.magicOpen();
+    followPlayer(0, true);
+  };
+
+  /**
+   * Says what the racing dimension is doing, and puts this child on the grid.
+   *
+   * The referee decides both. A child who was not on the track when the grid
+   * was frozen has no slot and no kart: they watch this race and are in the
+   * next one, which is what makes walking in on a race worth doing.
+   */
+  const raceHint = (): void => {
+    if (place !== 'bana') return;
+    if (!race) {
+      setLandmarkHint('Väntar på tävlingen…');
+      return;
+    }
+    const left = Math.max(0, Math.ceil(race.until - Date.now() / 1000));
+    const slot = race.grid[session.id];
+    const racing = slot !== undefined;
+
+    const fresh = race.phase === 'countdown' && racePhase !== 'countdown';
+    racePhase = race.phase;
+    if (racing && (slot !== onGrid || fresh)) {
+      onGrid = slot;
+      track.lineUp(worn, gridSlot(slot));
+    }
+    if (!racing && onGrid !== -1) {
+      onGrid = -1;
+      track.clear();
+    }
+
+    if (race.phase === 'waiting') {
+      setLandmarkHint(racing ? `Starten går om ${left}…` : 'Du är med i nästa lopp.');
+    } else if (race.phase === 'countdown') {
+      setLandmarkHint(left <= 0 ? 'Kör!' : `${left}…`);
+    } else if (race.phase === 'racing') {
+      if (!racing) {
+        setLandmarkHint('Du tittar på. Du är med i nästa lopp!');
+      } else {
+        const lap = Math.min(LAPS, (race.laps[session.id] ?? 0) + 1);
+        const place = race.order.indexOf(session.id) + 1;
+        setLandmarkHint(`Varv ${lap}/${LAPS} · ${place || '-'}:a`);
+      }
+    } else if (race.order.length === 0) {
+      // A race with nobody in it, which is what the loop does when the track is
+      // empty. Saying somebody won it would be a strange thing to walk in on.
+      setLandmarkHint('Nästa lopp börjar strax!');
+    } else {
+      const won = race.order[0];
+      const mine = race.order.indexOf(session.id) + 1;
+      const name = won === session.id ? 'Du' : visitors.nameOf(won) ?? 'Någon';
+      if (mine === 1) setLandmarkHint('Du vann!');
+      else if (mine > 0) setLandmarkHint(`${name} vann! Du kom ${mine}:a.`);
+      else setLandmarkHint(`${name} vann!`);
+    }
+  };
+
   /** Walking into a gateway, on either side of it. */
   const gateways = (): void => {
+    if (place === 'bana') {
+      // The portal you came through stands beside the grid; walking back into
+      // it takes you home. Being on the grass and stopped is enough here —
+      // there is no steering input to confuse it with, the way the yard has.
+      return;
+    }
     if (place === 'studs') {
       if (inGateway && !yard.nearGate) inGateway = false;
       if (!inGateway && yard.atGate) leaveYard();
@@ -767,6 +909,14 @@ async function start(): Promise<void> {
     else if (!inGateway && away < TABLE_NOTICE && !nearTable) {
       setLandmarkHint('Grinden! Gå in och studsa.');
     }
+
+    if (!world.hasPortal) return;
+    const toPortal = Math.hypot(player.x - PORTAL_SPOT.x, player.y - PORTAL_SPOT.y);
+    if (inGateway && toPortal > PORTAL_LEAVE && away > GATE_LEAVE) inGateway = false;
+    if (!inGateway && toPortal < PORTAL_REACH) enterTrack();
+    else if (!inGateway && toPortal < TABLE_NOTICE && !nearTable) {
+      setLandmarkHint('Portalen! Gå in och kör kart.');
+    }
   };
 
   const viewport: ViewportSize = { width: 0, height: 0 };
@@ -779,6 +929,7 @@ async function start(): Promise<void> {
     renderer.setSize(viewport.width, viewport.height, false);
     camera.resize(viewport);
     yardCamera.resize(viewport);
+    trackCamera.resize(viewport);
   };
   resize();
   window.addEventListener('resize', resize);
@@ -818,7 +969,9 @@ async function start(): Promise<void> {
     Object.assign(window, {
       angen: {
         world, camera, assets, music, sfx, input, spelling, wardrobe,
-        session, visitors, board, boardUi, yard,
+        session, visitors, board, boardUi, yard, track,
+        trackApi: { locate, CENTRE },
+        get race() { return race; },
         get player() { return player; },
       },
     });
@@ -838,7 +991,33 @@ async function start(): Promise<void> {
 
     const busy = spellUi.open || wardrobe.open || spelling.open || boardUi.open;
 
-    if (place === 'studs') {
+    if (place === 'bana') {
+      // Steering only: a kart drives itself. Arrows on a laptop, and on a phone
+      // a finger held on the left or right of the screen — not toward the kart,
+      // the way the yard does it, because a kart that has turned round would
+      // then want the opposite side and nobody could follow that.
+      let steer = Math.sign(input.moveAxis().x);
+      if (steer === 0 && input.pointer.down) steer = input.pointer.x < 0 ? -1 : 1;
+      const rolling = race?.phase === 'racing' && race.grid[session.id] !== undefined;
+      track.update(dt, { steer: busy ? 0 : steer, rolling });
+      raceHint();
+
+      // Everyone else on the track, drawn as karts from their own poses.
+      const here = new Set<string>();
+      for (const other of visitors.inPlace('bana')) {
+        here.add(other.id);
+        track.show(other.id, other.variant, other.pose.x, other.pose.y, other.pose.r ?? 0);
+      }
+      for (const gone of track.drivers) if (!here.has(gone)) track.hide(gone);
+
+      // The way home stands well behind the grid: drive back into it.
+      const kart = track.kart;
+      if (kart) {
+        const away = Math.hypot(kart.x - TRACK_PORTAL.x, kart.y - TRACK_PORTAL.y);
+        if (inGateway && away > PORTAL_LEAVE) inGateway = false;
+        if (!inGateway && away < PORTAL_REACH) leaveTrack();
+      }
+    } else if (place === 'studs') {
       // Arrows on a laptop; on a phone there are none, so a finger held to one
       // side of the pony does the same job — walk that way on the ground, turn
       // that way in the air. Without this the yard could not be played on a
@@ -873,7 +1052,15 @@ async function start(): Promise<void> {
     myMarker.follow(player, dt);
     session.update(dt);
 
-    if (place === 'studs') {
+    if (place === 'bana') {
+      const { halfWidth, halfHeight } = trackCamera.extents(viewport);
+      // Watching rather than racing: follow whoever is leading.
+      const look = track.cameraTarget(halfWidth, halfHeight, race?.order[0]);
+      // Snapped rather than eased while racing: at twenty units a second an
+      // easing camera trails behind the kart and the corner arrives unseen.
+      trackCamera.lookAtScreenPoint(look.x, look.y);
+      renderer.render(track.scene, trackCamera.camera);
+    } else if (place === 'studs') {
       const { halfWidth, halfHeight } = yardCamera.extents(viewport);
       const look = yard.cameraTarget(halfWidth, halfHeight);
       const ease = 1 - Math.exp(-dt * 8);

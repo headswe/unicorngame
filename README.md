@@ -29,11 +29,15 @@ play — only to draw new parts.
 | Walk to the letter table | Play the spelling game |
 | Walk into the gate | Go through to the bouncing yard |
 | Walk up to the easel | Draw on the board everybody shares |
+| Walk into the portal | Go through to the racing dimension |
 
 Both schemes are live at once, so a laptop and a tablet behave the same.
 
 In the bouncing yard, left and right run on the ground and turn somersaults in
 the air. Walking into the gate at the far end brings you back to the meadow.
+
+On the race track a kart drives itself and left and right steer it. Driving
+back into the portal behind the grid brings you home.
 
 ## How a unicorn is put together
 
@@ -109,9 +113,9 @@ New bodies, horns, manes, tails and patterns are picked up by the random
 generator automatically; scenery needs a line in the `SCATTER` table in
 `src/game/world.ts`.
 
-## The two places
+## The three places
 
-There are two, and they are drawn by different rules.
+There are three, and they are drawn by different rules.
 
 **The meadow** (`src/game/world.ts`) is a field seen at three-quarters: `y` is
 depth, squashed on screen, everything sorted north to south.
@@ -121,6 +125,12 @@ spread seen flat on: `y` is height off the ground, a unicorn is exactly as tall
 as it is, and there is no depth to sort by at all. Same sprites either way — a
 storybook pony is drawn in side view for both — so `Unicorn` carries a `view`
 flag rather than there being two of it.
+
+**The racing dimension** (`src/game/racetrack.ts`), through the portal, is seen
+from straight above: `y` is north, nothing is squashed, and things rotate. That
+last part is why it has its own sprites — a pony drawn in profile would be
+lying on its side from up here — so the karts and their drivers are drawn
+nose-up and one rotation puts them wherever the steering says.
 
 Because the same two numbers mean different things on the two sides of the
 gate, a pose sent over the network says which place it is talking about; see
@@ -152,6 +162,34 @@ day — so none of the three can fall out of step with the others. It is square
 because that is what a phone held upright can show; a landscape board would
 throw away half the drawing area. Where the white face sits inside the easel
 artwork is measured off the art itself by `scripts/board-face.mjs`.
+
+## Racing
+
+Races run on a loop whether anybody is there or not — a wait on the grid, a
+countdown, three laps, results, and round again — so a child coming through the
+portal always walks in on something and never has to organise anything. Arrive
+mid-race and you watch it and are in the next one. Everybody finishes: nobody
+is eliminated and coming last still means coming.
+
+The circuit is a *path*, not a picture (`server/track.js`). A dozen control
+points are smoothed into a closed loop, and the road is drawn by stroking that
+loop, being on the road is being near it, and how far round you are is how far
+along it you are. One description of the circuit, so the road a child can see
+and the road the lap counter believes in cannot come apart — which matters
+because the relay is the referee and needs the same track they are driving on.
+
+Every corner has to be wider than the tightest arc a kart can turn flat out,
+which is its top speed over its turn rate. That is not a nicety — a corner
+tighter than that cannot be taken at all, however well you drive — and the
+first draft of this circuit had a chicane at half the necessary radius.
+`node scripts/corners.mjs` measures them all.
+
+Who drives what is split the way the yard's is. Driving is each child's own,
+because a kart is far too immediate to put a round trip inside; the relay
+(`server/race.js`) settles only what has to be agreed — when to go, who has
+done how many laps, and who won. The kart is painted in its driver's mane
+colour and the little unicorn in it in their coat, so a child arrives already
+recognisable without choosing anything.
 
 ## How the world is drawn
 
@@ -188,6 +226,8 @@ src/engine/               projection, sprites, tint shader, input, assets, rng
 src/game/                 variant, rig, unicorn, player, world, yard, backdrop
 server/herd.js            the herd simulation, shared by relay and browser
 server/clutch.js          how many eggs a magic flower holds, likewise shared
+server/track.js           the circuit, shared so the referee knows the road
+server/race.js            the race loop: countdown, laps, who won
 ```
 
 ## Debugging

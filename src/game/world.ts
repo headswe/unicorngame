@@ -92,6 +92,15 @@ export const GATE_SPOT = { x: 8.5, y: 15.5 };
  */
 export const EASEL_SPOT = { x: 6.5, y: 4 };
 
+/**
+ * The portal through to the racing dimension.
+ *
+ * Due west and well out from the middle. The four things worth walking to now
+ * sit at four points of the compass around the clearing, so a child who wanders
+ * in any direction finds one of them and never two at once.
+ */
+export const PORTAL_SPOT = { x: -16.5, y: 8.5 };
+
 interface ScatterSpec {
   id: string;
   count: number;
@@ -168,6 +177,7 @@ export class World {
   hasLetterTable = false;
   hasGate = false;
   hasEasel = false;
+  hasPortal = false;
 
   /** The live drawing hung on the easel, and which version of it is uploaded. */
   private boardTexture: THREE.CanvasTexture | null = null;
@@ -212,6 +222,7 @@ export class World {
     this.placeShovel();
     this.placeLetterTable();
     this.placeGate();
+    this.placePortal();
 
     this.player = playerUnicorn;
     this.player.x = SPAWN.x;
@@ -267,7 +278,8 @@ export class World {
             (Math.hypot(x - SPAWN.x, y - SPAWN.y) > CLEARING_RADIUS &&
               Math.hypot(x - TABLE_SPOT.x, y - TABLE_SPOT.y) > TABLE_CLEARING &&
               Math.hypot(x - GATE_SPOT.x, y - GATE_SPOT.y) > TABLE_CLEARING &&
-              Math.hypot(x - EASEL_SPOT.x, y - EASEL_SPOT.y) > EASEL_CLEARING);
+              Math.hypot(x - EASEL_SPOT.x, y - EASEL_SPOT.y) > EASEL_CLEARING &&
+              Math.hypot(x - PORTAL_SPOT.x, y - PORTAL_SPOT.y) > TABLE_CLEARING);
           if (clear) {
             placed = true;
             break;
@@ -467,6 +479,13 @@ export class World {
     const part = this.assets.get('grind');
     this.plant(part, GATE_SPOT.x, GATE_SPOT.y, part.worldHeight, true);
     this.hasGate = true;
+  }
+
+  private placePortal(): void {
+    if (!this.assets.has('portal')) return;
+    const part = this.assets.get('portal');
+    this.plant(part, PORTAL_SPOT.x, PORTAL_SPOT.y, part.worldHeight, true);
+    this.hasPortal = true;
   }
 
   /**

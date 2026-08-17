@@ -33,6 +33,16 @@ export interface UnicornVariant {
 
   /** Overall size multiplier — foals are smaller. */
   scale: number;
+
+  /**
+   * Which go-kart this unicorn races in, as an index into KARTS.
+   *
+   * Part of the unicorn rather than a thing of its own, because the kart is
+   * painted in this unicorn's colours and driven by this unicorn — it is what
+   * they are wearing, not a second character. Absent on a save from before the
+   * racing dimension existed, which means the first kart.
+   */
+  kart?: number;
 }
 
 /** Ids the generator may choose from, filtered to what actually loaded. */
