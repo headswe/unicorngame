@@ -834,6 +834,8 @@ async function start(): Promise<void> {
     onGrid = -1;
     lightStep = -1;
     hud.setLights(-1);
+    hud.setShout(null);
+    hud.setBoard(null, null);
     hud.setWardrobeShown(true);
     sfx.parked();
     player.x = PORTAL_SPOT.x;
@@ -872,7 +874,14 @@ async function start(): Promise<void> {
       setLandmarkHint('Väntar på tävlingen…');
       return;
     }
-    const left = Math.max(0, Math.ceil(race.until - Date.now() / 1000));
+    // Capped at the length of the phase as well as floored at zero. The
+    // deadline comes from the referee's clock and is compared against this
+    // child's, and a tablet running a second fast is enough to open a
+    // three-second countdown on "4…".
+    const left = Math.max(
+      0,
+      Math.min(PHASES[race.phase], Math.ceil(race.until - Date.now() / 1000)),
+    );
     const slot = race.grid[session.id];
     const racing = slot !== undefined;
 
@@ -906,18 +915,30 @@ async function start(): Promise<void> {
     }
 
     if (race.phase === 'waiting') {
+      hud.setShout(null);
+      hud.setBoard(null, null);
       setLandmarkHint(racing ? `Starten går om ${left}…` : 'Du är med i nästa lopp.');
     } else if (race.phase === 'countdown') {
-      setLandmarkHint(left <= 0 ? 'Kör!' : `${left}…`);
+      // Big and alone in the middle of the screen. The number is all there is
+      // to say, and it is the one thing that must not be missed.
+      hud.setShout(left <= 0 ? 'Kör!' : String(left));
+      hud.setBoard(null, null);
+      setLandmarkHint(null);
     } else if (race.phase === 'racing') {
+      // "Kör!" holds for as long as the green light does, then gets out of the
+      // way of the driving.
+      hud.setShout(step === 2 ? 'Kör!' : null);
       if (!racing) {
+        hud.setBoard(null, null);
         setLandmarkHint('Du tittar på. Du är med i nästa lopp!');
       } else {
         const lap = Math.min(LAPS, (race.laps[session.id] ?? 0) + 1);
-        const spot = placing(race.order.indexOf(session.id) + 1);
-        setLandmarkHint(spot ? `Varv ${lap}/${LAPS} · ${spot}` : `Varv ${lap}/${LAPS}`);
+        hud.setBoard(`Varv ${lap}/${LAPS}`, placing(race.order.indexOf(session.id) + 1));
+        setLandmarkHint(null);
       }
     } else if (race.order.length === 0) {
+      hud.setShout(null);
+      hud.setBoard(null, null);
       // A race with nobody in it, which is what the loop does when the track is
       // empty. Saying somebody won it would be a strange thing to walk in on.
       setLandmarkHint('Nästa lopp börjar strax!');
@@ -925,8 +946,13 @@ async function start(): Promise<void> {
       const won = race.order[0];
       const mine = race.order.indexOf(session.id) + 1;
       const name = won === session.id ? 'Du' : visitors.nameOf(won) ?? 'Någon';
+      hud.setBoard(null, null);
+      // How you did, in one word the size of the screen; who won, in the small
+      // line underneath. A child wants to know their own result first, and it
+      // is the half that fits.
+      hud.setShout(placing(mine));
       if (mine === 1) setLandmarkHint('Du vann!');
-      else if (mine > 0) setLandmarkHint(`${name} vann! Du kom ${placing(mine)}.`);
+      else if (mine > 0) setLandmarkHint(`${name} vann!`);
       else setLandmarkHint(`${name} vann!`);
     }
   };

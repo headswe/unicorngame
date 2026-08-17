@@ -157,6 +157,104 @@
         background: #53e070;
         box-shadow: 0 0 18px 6px rgba(83, 224, 112, 0.75);
       }
+      /* The one big word: the countdown, and "Kör!" as the flag drops. Sized
+         off the screen width so it is the same handful of characters filling
+         the same share of a phone and of a laptop. Cream on a thick brown
+         outline, which is the only way white text stays readable over both
+         grey tarmac and bright green grass. */
+      .hud-shout {
+        position: fixed;
+        /* Above the middle: clear of the lap board in the top left, clear of
+           the kart in the centre, and clear of the name card at the bottom. */
+        top: 30%;
+        left: 50%;
+        transform: translateX(-50%);
+        margin: 0;
+        font-size: clamp(3rem, 17vw, 7rem);
+        font-weight: bold;
+        line-height: 1;
+        white-space: nowrap;
+        text-transform: uppercase;
+        color: #fffaf0;
+        -webkit-text-stroke: 0.12em var(--ink);
+        paint-order: stroke fill;
+        text-shadow: 0 0.06em 0 rgba(74, 51, 39, 0.35);
+        pointer-events: none;
+        z-index: 7;
+      }
+      .hud-shout[hidden] {
+        display: none;
+      }
+      .hud-shout.pop {
+        animation: shout-pop 0.45s cubic-bezier(0.2, 1.5, 0.4, 1);
+      }
+      @keyframes shout-pop {
+        0% {
+          transform: translateX(-50%) scale(0.4);
+          opacity: 0;
+        }
+        60% {
+          transform: translateX(-50%) scale(1.12);
+          opacity: 1;
+        }
+      }
+      /* Lap and placing, down the left. Big enough to read out of the corner
+         of an eye at speed, which is the only way it gets read at all. */
+      .hud-board {
+        position: fixed;
+        /* Below the row the corner buttons and the starting lights live in,
+           rather than in the corner itself. The lights are centred and grow
+           with the screen, so anything sharing that row with them is one
+           narrow phone away from being sat on. */
+        top: calc(4.6rem + env(safe-area-inset-top));
+        left: clamp(0.6rem, 3vw, 1.4rem);
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        line-height: 1;
+        color: #fffaf0;
+        -webkit-text-stroke: 0.09em var(--ink);
+        paint-order: stroke fill;
+        text-shadow: 0 0.06em 0 rgba(74, 51, 39, 0.35);
+        pointer-events: none;
+        z-index: 5;
+      }
+      .hud-board[hidden] {
+        display: none;
+      }
+      .hud-board-lap {
+        font-size: clamp(1.2rem, 6vw, 2.1rem);
+        font-weight: bold;
+      }
+      .hud-board-spot {
+        font-size: clamp(2.1rem, 10vw, 3.4rem);
+        font-weight: bold;
+        text-transform: uppercase;
+      }
+      .hud-board.leading .hud-board-spot {
+        color: #ffd23f;
+      }
+      .hud-board-lap[hidden],
+      .hud-board-spot[hidden] {
+        display: none;
+      }
+      .hud-board-spot.pop {
+        animation: spot-pop 0.4s cubic-bezier(0.2, 1.5, 0.4, 1);
+      }
+      @keyframes spot-pop {
+        0% {
+          transform: scale(0.6);
+        }
+        60% {
+          transform: scale(1.15);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .hud-shout.pop,
+        .hud-board-spot.pop {
+          animation: none;
+        }
+      }
       .hud-card {
         display: flex;
         align-items: center;

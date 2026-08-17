@@ -32,6 +32,7 @@ export class Hud {
   private readonly friendsCount: HTMLSpanElement;
   private readonly wardrobe: HTMLButtonElement;
   private hint: string | null = null;
+  private shout: string | null = null;
   private resting = 'Gå med pilarna · eller peka där du vill gå';
   /** While `performance.now()` is below this, ambient hints are held off. */
   private announceUntil = 0;
@@ -57,6 +58,11 @@ export class Hud {
         <span class="hud-light hud-light-red"></span>
         <span class="hud-light hud-light-amber"></span>
         <span class="hud-light hud-light-green"></span>
+      </div>
+      <p class="hud-shout" hidden aria-live="assertive"></p>
+      <div class="hud-board" hidden>
+        <span class="hud-board-lap"></span>
+        <span class="hud-board-spot"></span>
       </div>
       <div class="hud-card">
         <span class="hud-name"></span>
@@ -184,10 +190,60 @@ export class Hud {
   }
 
   /**
+   * The one big word across the middle of the track: "3", "2", "1", "Kör!".
+   *
+   * A racing game says the important things loudly and in one glance, because
+   * nobody reads a caption at forty miles an hour. This is the only text in
+   * the game drawn at that size, and it is only ever three characters or so —
+   * anything longer belongs on the hint line at the bottom.
+   */
+  setShout(text: string | null): void {
+    const el = this.root.querySelector<HTMLParagraphElement>('.hud-shout');
+    if (!el) return;
+    if (text === this.shout) return;
+    this.shout = text;
+    el.hidden = text === null;
+    if (text === null) return;
+    el.textContent = text;
+    // Restarted from the beginning each time, so every number of the countdown
+    // gets its own punch rather than the first one animating and the rest
+    // sliding in silently.
+    el.classList.remove('pop');
+    void el.offsetWidth;
+    el.classList.add('pop');
+  }
+
+  /**
+   * The steady readout while a race is on: which lap, and where you are in it.
+   *
+   * Down the left, under the buttons rather than beside them: the starting
+   * lights are centred and grow with the screen, so anything sharing that top
+   * row with them is one narrow phone away from being sat on.
+   */
+  setBoard(lap: string | null, spot: string | null): void {
+    const box = this.root.querySelector<HTMLDivElement>('.hud-board');
+    const lapEl = this.root.querySelector<HTMLSpanElement>('.hud-board-lap');
+    const spotEl = this.root.querySelector<HTMLSpanElement>('.hud-board-spot');
+    if (!box || !lapEl || !spotEl) return;
+    box.hidden = lap === null && spot === null;
+    lapEl.textContent = lap ?? '';
+    lapEl.hidden = lap === null;
+    spotEl.hidden = spot === null;
+    if (spot !== null && spot !== spotEl.textContent) {
+      spotEl.textContent = spot;
+      // Being overtaken, or overtaking, is the thing worth noticing.
+      spotEl.classList.remove('pop');
+      void spotEl.offsetWidth;
+      spotEl.classList.add('pop');
+    }
+    box.classList.toggle('leading', spot === 'etta');
+  }
+
+  /**
    * Takes the wardrobe button away, and puts it back.
    *
    * Used once the lights go up out on the track: there is nothing to be done
-   * in the wardrobe mid-race, the corner it lives in is where a child's thumb
+   * in the wardrobe mid-race, it lives in the corner where a child's thumb
    * already is, and opening it over a race you cannot pause is a small
    * disaster. It comes back the moment the chequered flag is out.
    */
