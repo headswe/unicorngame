@@ -111,7 +111,16 @@ export class Board {
   private strokes: Stroke[] = [];
   private readonly byId = new Map<string, Stroke>();
 
-  /** Bumped on every change, so a texture knows when to upload again. */
+  /**
+   * Bumped on every change, so the easel out in the meadow knows to upload the
+   * canvas again.
+   *
+   * Every path that touches the canvas has to bump it, which is a rule easy to
+   * forget — and forgetting it once already meant a child arriving to a blank
+   * easel that filled in the moment they drew on it, because taking the whole
+   * board from the relay repainted the canvas without saying so. `repaint` bumps
+   * it itself now, so the only path left to remember by hand is `ink`.
+   */
   version = 0;
 
   constructor() {
@@ -196,7 +205,6 @@ export class Board {
     if (!removed) return false;
     this.strokes = this.strokes.filter((s) => this.byId.has(s.id));
     this.repaint();
-    this.version += 1;
     return true;
   }
 
@@ -240,8 +248,9 @@ export class Board {
     return hits;
   }
 
-  /** Redraws everything from scratch. Only needed when something is removed. */
+  /** Redraws everything from scratch, and says so. */
   private repaint(): void {
+    this.version += 1;
     const ctx = this.ctx;
     if (!ctx) return;
     ctx.fillStyle = '#fffdf8';
