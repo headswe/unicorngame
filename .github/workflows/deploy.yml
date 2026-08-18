@@ -56,7 +56,21 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url || steps.retry.outputs.page_url }}
     steps:
+      # Pages sometimes answers the "create a deployment" call with a 503 while
+      # everything on our side is fine: the build passed, the artifact is
+      # uploaded, and the site just quietly stays on the previous version.
+      # Nobody finds out until a child goes looking for a change that is not
+      # there. One retry costs half a minute and turns that into a non-event.
       - id: deployment
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+
+      - name: Wait, then try once more
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 30
+
+      - id: retry
+        if: steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@v4
